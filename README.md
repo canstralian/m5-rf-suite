@@ -208,28 +208,78 @@ Edit `include/config.h` to customize:
 maxTransmitsPerMinute = 10;  // In safety_module.cpp
 ```
 
+## RF Test Workflows
+
+The suite includes a comprehensive workflow system for structured RF testing:
+
+### Workflow States
+
+1. **IDLE**: Initial resting state
+2. **INIT**: Hardware initialization
+3. **LISTENING**: Passive observation (no transmission)
+4. **ANALYZING**: Signal processing and classification
+5. **READY**: Awaiting user decision
+6. **TX_GATED**: Multi-stage transmission approval
+7. **TRANSMIT**: Controlled RF transmission
+8. **CLEANUP**: Resource deallocation
+
+### Key Features
+
+- **Passive-Listening First**: Always observe before transmitting
+- **Fail-Safe Modes**: Timeout protection at every state
+- **Gated Transmission**: Multi-stage approval (Policy → Confirmation → Rate Limit → Band-Specific)
+- **Complete Traceability**: Microsecond-precision timing logs
+
+See `WORKFLOWS.md` for detailed state diagrams and `PSEUDOCODE.md` for implementation details.
+
+### Example Usage
+
+```cpp
+#include "rf_test_workflow.h"
+
+RFTestWorkflow workflow;
+
+void setup() {
+    // Configure for 433 MHz testing
+    WorkflowConfig config;
+    config.band = BAND_433MHZ;
+    config.listenMinTime = 5000;   // 5 seconds
+    config.listenMaxTime = 60000;  // 60 seconds
+    
+    workflow.initialize(config, &rf433, &rf24);
+    workflow.start();  // Runs complete workflow
+}
+```
+
+See `examples/rf_workflow_test/` for a complete working example.
+
 ## Architecture
 
 ### Module Structure
 
 ```
 m5-rf-suite/
-├── include/              # Header files
-│   ├── config.h         # Configuration constants
-│   ├── rf433_module.h   # 433 MHz operations
-│   ├── rf24_module.h    # 2.4 GHz operations
-│   ├── safety_module.h  # Safety and policy enforcement
-│   └── ui_module.h      # User interface (header only)
-├── src/                 # Implementation files
-│   ├── main.cpp         # Main application
-│   ├── rf433_module.cpp # 433 MHz implementation
-│   ├── rf24_module.cpp  # 2.4 GHz implementation
-│   └── safety_module.cpp # Safety implementation
-├── examples/            # Example applications
+├── include/                    # Header files
+│   ├── config.h               # Configuration constants
+│   ├── rf433_module.h         # 433 MHz operations
+│   ├── rf24_module.h          # 2.4 GHz operations
+│   ├── safety_module.h        # Safety and policy enforcement
+│   ├── rf_test_workflow.h     # RF test workflow state machine
+│   └── ui_module.h            # User interface (header only)
+├── src/                       # Implementation files
+│   ├── main.cpp               # Main application
+│   ├── rf433_module.cpp       # 433 MHz implementation
+│   ├── rf24_module.cpp        # 2.4 GHz implementation
+│   ├── safety_module.cpp      # Safety implementation
+│   └── rf_test_workflow.cpp   # Workflow implementation
+├── examples/                  # Example applications
 │   ├── 433mhz_scanner/
 │   ├── wifi_scanner/
-│   └── espnow_test/
-└── platformio.ini       # Build configuration
+│   ├── espnow_test/
+│   └── rf_workflow_test/      # Workflow demonstration
+├── WORKFLOWS.md               # State diagrams and flows
+├── PSEUDOCODE.md              # Structured pseudocode
+└── platformio.ini             # Build configuration
 ```
 
 ### Safety Architecture

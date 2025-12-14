@@ -131,6 +131,50 @@ struct CapturedSignalData {
         memset(deviceType, 0, sizeof(deviceType));
     }
     
+    // Copy constructor
+    CapturedSignalData(const CapturedSignalData& other) :
+        captureTime(other.captureTime), frequency(other.frequency),
+        rssi(other.rssi), dataLength(other.dataLength),
+        pulseTimes(nullptr), pulseCount(other.pulseCount),
+        isValid(other.isValid) {
+        memcpy(rawData, other.rawData, sizeof(rawData));
+        memcpy(protocol, other.protocol, sizeof(protocol));
+        memcpy(deviceType, other.deviceType, sizeof(deviceType));
+        if (other.pulseTimes != nullptr && other.pulseCount > 0) {
+            pulseTimes = new uint16_t[other.pulseCount];
+            memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
+        }
+    }
+    
+    // Copy assignment operator
+    CapturedSignalData& operator=(const CapturedSignalData& other) {
+        if (this != &other) {
+            // Free existing resources
+            if (pulseTimes != nullptr) {
+                delete[] pulseTimes;
+                pulseTimes = nullptr;
+            }
+            
+            // Copy data
+            captureTime = other.captureTime;
+            frequency = other.frequency;
+            rssi = other.rssi;
+            dataLength = other.dataLength;
+            pulseCount = other.pulseCount;
+            isValid = other.isValid;
+            memcpy(rawData, other.rawData, sizeof(rawData));
+            memcpy(protocol, other.protocol, sizeof(protocol));
+            memcpy(deviceType, other.deviceType, sizeof(deviceType));
+            
+            // Deep copy pulse times
+            if (other.pulseTimes != nullptr && other.pulseCount > 0) {
+                pulseTimes = new uint16_t[other.pulseCount];
+                memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
+            }
+        }
+        return *this;
+    }
+    
     ~CapturedSignalData() {
         if (pulseTimes != nullptr) {
             delete[] pulseTimes;

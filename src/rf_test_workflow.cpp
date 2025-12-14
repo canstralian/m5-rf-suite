@@ -658,12 +658,16 @@ void RFTestWorkflow::classifyDevice433MHz(CapturedSignalData& signal) {
     
     if (avgPulse > 400 && signal.pulseCount >= 48) {
         strncpy(signal.deviceType, "Garage Door", sizeof(signal.deviceType) - 1);
+        signal.deviceType[sizeof(signal.deviceType) - 1] = '\0';
     } else if (avgPulse < 350 && signal.pulseCount < 48) {
         strncpy(signal.deviceType, "Doorbell", sizeof(signal.deviceType) - 1);
+        signal.deviceType[sizeof(signal.deviceType) - 1] = '\0';
     } else if (signal.pulseCount >= 128) {
         strncpy(signal.deviceType, "Car Remote", sizeof(signal.deviceType) - 1);
+        signal.deviceType[sizeof(signal.deviceType) - 1] = '\0';
     } else {
         strncpy(signal.deviceType, "Unknown", sizeof(signal.deviceType) - 1);
+        signal.deviceType[sizeof(signal.deviceType) - 1] = '\0';
     }
 }
 
@@ -754,6 +758,7 @@ bool RFTestWorkflow::checkConfirmationGate() {
 
 bool RFTestWorkflow::checkRateLimitGate() {
     // Use safety module for rate limiting
+    extern SafetyModule Safety;
     return Safety.isRateLimitOK();
 }
 
@@ -929,14 +934,21 @@ void convertRF433Signal(const RF433Signal& src, CapturedSignalData& dst) {
     // Copy pulse times (simplified - would need actual pulse data)
     dst.pulseCount = src.bitLength;
     if (dst.pulseCount > 0) {
-        dst.pulseTimes = new uint16_t[dst.pulseCount];
-        for (uint16_t i = 0; i < dst.pulseCount; i++) {
-            dst.pulseTimes[i] = src.pulseLength;
+        try {
+            dst.pulseTimes = new uint16_t[dst.pulseCount];
+            for (uint16_t i = 0; i < dst.pulseCount; i++) {
+                dst.pulseTimes[i] = src.pulseLength;
+            }
+        } catch (...) {
+            // If allocation fails, set to nullptr and count to 0
+            dst.pulseTimes = nullptr;
+            dst.pulseCount = 0;
         }
     }
     
     snprintf(dst.protocol, sizeof(dst.protocol), "RCSwitch-%d", src.protocol);
     strncpy(dst.deviceType, src.description, sizeof(dst.deviceType) - 1);
+    dst.deviceType[sizeof(dst.deviceType) - 1] = '\0';
     dst.isValid = src.isValid;
 }
 

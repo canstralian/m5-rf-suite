@@ -160,25 +160,29 @@ struct CapturedSignalData {
     // ========================================================================
     // COPY CONSTRUCTOR: Creates deep copy with independent buffer
     // Ownership: Allocates NEW buffer, source retains its buffer
+    // Exception Safety: Strong guarantee via allocatePulseBuffer()
     // ========================================================================
     CapturedSignalData(const CapturedSignalData& other) :
         captureTime(other.captureTime), frequency(other.frequency),
         rssi(other.rssi), dataLength(other.dataLength),
-        pulseTimes(nullptr), pulseCount(other.pulseCount),
+        pulseTimes(nullptr), pulseCount(0),
         isValid(other.isValid) {
         memcpy(rawData, other.rawData, sizeof(rawData));
         memcpy(protocol, other.protocol, sizeof(protocol));
         memcpy(deviceType, other.deviceType, sizeof(deviceType));
-        // Deep copy: Allocate independent buffer
+        // Deep copy: Allocate independent buffer with exception safety
         if (other.pulseTimes != nullptr && other.pulseCount > 0) {
-            pulseTimes = new uint16_t[other.pulseCount];
-            memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
+            if (allocatePulseBuffer(other.pulseCount)) {
+                memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
+            }
+            // If allocation fails, object is still in valid state (nullptr, count=0)
         }
     }
     
     // ========================================================================
     // COPY ASSIGNMENT: Creates deep copy with independent buffer
     // Ownership: Frees existing buffer, allocates NEW buffer
+    // Exception Safety: Strong guarantee via allocatePulseBuffer()
     // ========================================================================
     CapturedSignalData& operator=(const CapturedSignalData& other) {
         if (this != &other) {
@@ -190,16 +194,17 @@ struct CapturedSignalData {
             frequency = other.frequency;
             rssi = other.rssi;
             dataLength = other.dataLength;
-            pulseCount = other.pulseCount;
             isValid = other.isValid;
             memcpy(rawData, other.rawData, sizeof(rawData));
             memcpy(protocol, other.protocol, sizeof(protocol));
             memcpy(deviceType, other.deviceType, sizeof(deviceType));
             
-            // Deep copy: Allocate independent buffer
+            // Deep copy: Allocate independent buffer with exception safety
             if (other.pulseTimes != nullptr && other.pulseCount > 0) {
-                pulseTimes = new uint16_t[other.pulseCount];
-                memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
+                if (allocatePulseBuffer(other.pulseCount)) {
+                    memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
+                }
+                // If allocation fails, object is in valid state (nullptr, count=0)
             }
         }
         return *this;

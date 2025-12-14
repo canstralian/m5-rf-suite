@@ -170,6 +170,7 @@ int RF24Module::getPeerCount() {
 void RF24Module::onESPNowDataReceived(const uint8_t* mac, const uint8_t* data, int len) {
     if (g_instance == nullptr) return;
     
+    // MEMORY OWNERSHIP: Create message on stack (no dynamic allocation in ESPNowMessage)
     ESPNowMessage msg;
     memcpy(msg.senderId, mac, 6);
     msg.timestamp = millis();
@@ -182,6 +183,8 @@ void RF24Module::onESPNowDataReceived(const uint8_t* mac, const uint8_t* data, i
         msg.messageType = 0;
     }
     
+    // MEMORY OWNERSHIP: Copy message into vector (vector takes ownership of copy)
+    // ESPNowMessage has no dynamic allocations, so copy is safe and efficient
     g_instance->receivedMessages.push_back(msg);
     
 #if ENABLE_SERIAL_LOGGING

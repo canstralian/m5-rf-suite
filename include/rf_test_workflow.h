@@ -111,18 +111,44 @@ struct WorkflowConfig {
         bufferSize(WORKFLOW_SIGNAL_BUFFER_SIZE) {}
 };
 
+/**
+ * @brief Captured RF signal data with RAII-managed dynamically allocated buffer
+ * 
+ * MEMORY OWNERSHIP RULES:
+ * - This struct owns the pulseTimes buffer (if allocated)
+ * - pulseTimes is dynamically allocated on heap when pulseCount > 0
+ * - Destructor automatically frees the buffer (RAII pattern)
+ * - Deep copy semantics: copying creates independent buffer copy
+ * - Move semantics: moving transfers ownership without allocation
+ * 
+ * LIFETIME GUARANTEES:
+ * - pulseTimes buffer lifetime tied to this object's lifetime
+ * - pulseTimes is valid as long as this object exists and pulseCount > 0
+ * - After move, source object's pulseTimes is nullptr (ownership transferred)
+ * 
+ * THREAD SAFETY:
+ * - NOT thread-safe: external synchronization required for concurrent access
+ * 
+ * USAGE NOTES:
+ * - Prefer move operations (std::move) when transferring ownership
+ * - Use allocatePulseBuffer() for safe buffer allocation
+ * - Use deallocatePulseBuffer() for explicit cleanup (optional)
+ */
 struct CapturedSignalData {
     uint32_t captureTime;       // Microseconds
     float frequency;            // MHz
     int8_t rssi;               // dBm
     uint8_t rawData[32];       // Raw data bytes
     uint16_t dataLength;       // Actual data length
-    uint16_t* pulseTimes;      // For 433 MHz (dynamically allocated)
-    uint16_t pulseCount;       // Number of pulses
+    uint16_t* pulseTimes;      // Owned pointer to pulse timing buffer (may be nullptr)
+    uint16_t pulseCount;       // Number of pulses in pulseTimes buffer
     char protocol[32];         // Protocol identifier
     char deviceType[32];       // Classified device type
     bool isValid;
     
+    // ========================================================================
+    // CONSTRUCTOR: Default initialization with no buffer allocated
+    // ========================================================================
     CapturedSignalData() : 
         captureTime(0), frequency(0), rssi(0), dataLength(0),
         pulseTimes(nullptr), pulseCount(0), isValid(false) {
@@ -131,7 +157,10 @@ struct CapturedSignalData {
         memset(deviceType, 0, sizeof(deviceType));
     }
     
-    // Copy constructor
+    // ========================================================================
+    // COPY CONSTRUCTOR: Creates deep copy with independent buffer
+    // Ownership: Allocates NEW buffer, source retains its buffer
+    // ========================================================================
     CapturedSignalData(const CapturedSignalData& other) :
         captureTime(other.captureTime), frequency(other.frequency),
         rssi(other.rssi), dataLength(other.dataLength),
@@ -140,22 +169,23 @@ struct CapturedSignalData {
         memcpy(rawData, other.rawData, sizeof(rawData));
         memcpy(protocol, other.protocol, sizeof(protocol));
         memcpy(deviceType, other.deviceType, sizeof(deviceType));
+        // Deep copy: Allocate independent buffer
         if (other.pulseTimes != nullptr && other.pulseCount > 0) {
             pulseTimes = new uint16_t[other.pulseCount];
             memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
         }
     }
     
-    // Copy assignment operator
+    // ========================================================================
+    // COPY ASSIGNMENT: Creates deep copy with independent buffer
+    // Ownership: Frees existing buffer, allocates NEW buffer
+    // ========================================================================
     CapturedSignalData& operator=(const CapturedSignalData& other) {
         if (this != &other) {
-            // Free existing resources
-            if (pulseTimes != nullptr) {
-                delete[] pulseTimes;
-                pulseTimes = nullptr;
-            }
+            // Release current resources (RAII cleanup)
+            deallocatePulseBuffer();
             
-            // Copy data
+            // Copy scalar and array data
             captureTime = other.captureTime;
             frequency = other.frequency;
             rssi = other.rssi;
@@ -166,7 +196,7 @@ struct CapturedSignalData {
             memcpy(protocol, other.protocol, sizeof(protocol));
             memcpy(deviceType, other.deviceType, sizeof(deviceType));
             
-            // Deep copy pulse times
+            // Deep copy: Allocate independent buffer
             if (other.pulseTimes != nullptr && other.pulseCount > 0) {
                 pulseTimes = new uint16_t[other.pulseCount];
                 memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
@@ -175,11 +205,114 @@ struct CapturedSignalData {
         return *this;
     }
     
+    // ========================================================================
+    // MOVE CONSTRUCTOR: Transfers ownership without allocation
+    // Ownership: Takes buffer from source, source loses ownership
+    // ========================================================================
+    CapturedSignalData(CapturedSignalData&& other) noexcept :
+        captureTime(other.captureTime), frequency(other.frequency),
+        rssi(other.rssi), dataLength(other.dataLength),
+        pulseTimes(other.pulseTimes), pulseCount(other.pulseCount),
+        isValid(other.isValid) {
+        memcpy(rawData, other.rawData, sizeof(rawData));
+        memcpy(protocol, other.protocol, sizeof(protocol));
+        memcpy(deviceType, other.deviceType, sizeof(deviceType));
+        // Transfer ownership: nullify source pointer
+        other.pulseTimes = nullptr;
+        other.pulseCount = 0;
+    }
+    
+    // ========================================================================
+    // MOVE ASSIGNMENT: Transfers ownership without allocation
+    // Ownership: Frees existing buffer, takes buffer from source
+    // ========================================================================
+    CapturedSignalData& operator=(CapturedSignalData&& other) noexcept {
+        if (this != &other) {
+            // Release current resources (RAII cleanup)
+            deallocatePulseBuffer();
+            
+            // Transfer scalar and array data
+            captureTime = other.captureTime;
+            frequency = other.frequency;
+            rssi = other.rssi;
+            dataLength = other.dataLength;
+            pulseCount = other.pulseCount;
+            isValid = other.isValid;
+            memcpy(rawData, other.rawData, sizeof(rawData));
+            memcpy(protocol, other.protocol, sizeof(protocol));
+            memcpy(deviceType, other.deviceType, sizeof(deviceType));
+            
+            // Transfer ownership: take buffer and nullify source
+            pulseTimes = other.pulseTimes;
+            other.pulseTimes = nullptr;
+            other.pulseCount = 0;
+        }
+        return *this;
+    }
+    
+    // ========================================================================
+    // DESTRUCTOR: Automatically frees owned buffer (RAII)
+    // ========================================================================
     ~CapturedSignalData() {
+        deallocatePulseBuffer();
+    }
+    
+    // ========================================================================
+    // HELPER METHODS: Safe buffer management
+    // ========================================================================
+    
+    /**
+     * @brief Allocate pulse timing buffer with specified count
+     * @param count Number of uint16_t elements to allocate
+     * @return true if allocation succeeded, false on failure
+     * 
+     * Ownership: This object owns the allocated buffer
+     * Note: Frees any existing buffer before allocating new one
+     */
+    bool allocatePulseBuffer(uint16_t count) {
+        if (count == 0) {
+            deallocatePulseBuffer();
+            return true;
+        }
+        
+        // Free existing buffer if present
+        deallocatePulseBuffer();
+        
+        // Allocate new buffer
+        try {
+            pulseTimes = new uint16_t[count];
+            pulseCount = count;
+            // Zero-initialize for safety
+            memset(pulseTimes, 0, count * sizeof(uint16_t));
+            return true;
+        } catch (...) {
+            // Allocation failed: ensure consistent state
+            pulseTimes = nullptr;
+            pulseCount = 0;
+            return false;
+        }
+    }
+    
+    /**
+     * @brief Explicitly deallocate pulse timing buffer
+     * 
+     * Note: Called automatically by destructor, manual call is optional
+     * Safe to call multiple times (idempotent)
+     */
+    void deallocatePulseBuffer() {
         if (pulseTimes != nullptr) {
             delete[] pulseTimes;
             pulseTimes = nullptr;
         }
+        pulseCount = 0;
+    }
+    
+    /**
+     * @brief Check if pulse buffer is allocated and valid
+     * @return true if buffer exists and pulseCount > 0
+     */
+    bool hasPulseBuffer() const {
+        return pulseTimes != nullptr && pulseCount > 0;
     }
 };
 
@@ -349,6 +482,9 @@ private:
     RF24Module* rf24Module;
     
     // Captured data
+    // MEMORY OWNERSHIP: Vector owns all CapturedSignalData objects and their buffers
+    // Each CapturedSignalData manages its own pulseTimes buffer via RAII
+    // Vector destruction will automatically free all signal buffers
     std::vector<CapturedSignalData> captureBuffer;
     AnalysisResult analysisResult;
     

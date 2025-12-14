@@ -50,6 +50,10 @@ bool RFTestWorkflow::initialize(const WorkflowConfig& cfg, RF433Module* rf433, R
     
     Serial.println("[Workflow] Initialized");
     Serial.printf("[Workflow] Band: %s\n", config.band == BAND_433MHZ ? "433 MHz" : "2.4 GHz");
+    if (config.dryRunMode) {
+        Serial.println("[Workflow] *** DRY-RUN MODE ENABLED ***");
+        Serial.println("[Workflow] *** NO RF EMISSIONS WILL OCCUR ***");
+    }
     
     return true;
 }
@@ -446,6 +450,10 @@ void RFTestWorkflow::processReadyState() {
 void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] === GATED TRANSMISSION PHASE ===");
     
+    if (config.dryRunMode) {
+        Serial.println("[Workflow] *** DRY-RUN MODE - SIMULATING GATES ***");
+    }
+    
     transmissionAttempts++;
     
     if (transmissionAttempts > 3) {
@@ -511,6 +519,10 @@ void RFTestWorkflow::processTxGatedState() {
 void RFTestWorkflow::processTransmitState() {
     Serial.println("[Workflow] === TRANSMISSION PHASE ===");
     
+    if (config.dryRunMode) {
+        Serial.println("[Workflow] *** DRY-RUN MODE ACTIVE - NO RF EMISSION ***");
+    }
+    
     const CapturedSignalData& signal = captureBuffer[selectedSignalIndex];
     
     Serial.printf("[Workflow] Transmitting signal %d\n", selectedSignalIndex);
@@ -526,7 +538,11 @@ void RFTestWorkflow::processTransmitState() {
     }
     
     if (success) {
-        Serial.println("[Workflow] Transmission completed successfully");
+        if (config.dryRunMode) {
+            Serial.println("[Workflow] Simulated transmission completed successfully");
+        } else {
+            Serial.println("[Workflow] Transmission completed successfully");
+        }
     } else {
         Serial.println("[Workflow] Transmission failed");
         logError(WF_ERROR_TRANSMISSION_FAILED, "Transmission execution failed");
@@ -801,6 +817,22 @@ bool RFTestWorkflow::check24GHzGate() {
 // ============================================================================
 
 bool RFTestWorkflow::transmit433MHz(const CapturedSignalData& signal) {
+    // Dry-run mode: simulate transmission without RF emission
+    if (config.dryRunMode) {
+        Serial.println("[Workflow] DRY-RUN: Simulating 433 MHz transmission");
+        Serial.printf("[Workflow] DRY-RUN: Would transmit %.2f MHz, %d pulses\n", 
+                      signal.frequency, signal.pulseCount);
+        Serial.printf("[Workflow] DRY-RUN: Protocol: %s, Device: %s\n", 
+                      signal.protocol, signal.deviceType);
+        
+        // Simulate transmission delay
+        uint32_t simulatedDuration = estimateTransmissionDuration(signal);
+        delay(simulatedDuration > 100 ? 100 : simulatedDuration);  // Cap at 100ms for simulation
+        
+        Serial.println("[Workflow] DRY-RUN: Simulated transmission complete");
+        return true;  // Always succeed in dry-run mode
+    }
+    
     if (rf433Module == nullptr) return false;
     
     // Convert to RF433Signal
@@ -812,6 +844,20 @@ bool RFTestWorkflow::transmit433MHz(const CapturedSignalData& signal) {
 }
 
 bool RFTestWorkflow::transmit24GHz(const CapturedSignalData& packet) {
+    // Dry-run mode: simulate transmission without RF emission
+    if (config.dryRunMode) {
+        Serial.println("[Workflow] DRY-RUN: Simulating 2.4 GHz transmission");
+        Serial.printf("[Workflow] DRY-RUN: Would transmit %d bytes on 2.4 GHz\n", 
+                      packet.dataLength);
+        Serial.printf("[Workflow] DRY-RUN: Protocol: %s\n", packet.protocol);
+        
+        // Simulate transmission delay
+        delay(50);  // Simulated 2.4 GHz transmission time
+        
+        Serial.println("[Workflow] DRY-RUN: Simulated transmission complete");
+        return true;  // Always succeed in dry-run mode
+    }
+    
     if (rf24Module == nullptr) return false;
     
     // 2.4 GHz transmission would be implemented here

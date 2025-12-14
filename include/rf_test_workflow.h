@@ -96,6 +96,7 @@ struct WorkflowConfig {
     uint32_t transmitMaxDuration;
     uint32_t cleanupTimeout;
     uint16_t bufferSize;
+    bool dryRunMode;  // Simulate transmissions without RF emission
     
     // Default constructor
     WorkflowConfig() :
@@ -108,7 +109,8 @@ struct WorkflowConfig {
         txGateTimeout(WORKFLOW_TX_GATE_TIMEOUT_MS),
         transmitMaxDuration(WORKFLOW_TRANSMIT_MAX_MS),
         cleanupTimeout(WORKFLOW_CLEANUP_TIMEOUT_MS),
-        bufferSize(WORKFLOW_SIGNAL_BUFFER_SIZE) {}
+        bufferSize(WORKFLOW_SIGNAL_BUFFER_SIZE),
+        dryRunMode(DRY_RUN_MODE) {}
 };
 
 struct CapturedSignalData {

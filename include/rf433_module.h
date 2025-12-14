@@ -95,6 +95,7 @@ private:
     unsigned long transmittedCount;
     
     // Internal helper functions
+    unsigned long calculateTransmissionDuration(const RF433Signal& signal);
     bool checkTransmitPolicy(const RF433Signal& signal);
     void logSignal(const RF433Signal& signal, bool isTransmit);
     bool isFrequencyBlacklisted(float frequency);

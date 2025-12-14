@@ -6,6 +6,7 @@
 #include "safety_module.h"
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 SafetyModule Safety; // Global instance
 
@@ -136,7 +137,7 @@ void SafetyModule::logTransmitAttempt(const TransmitRequest& request, bool allow
     log.duration = request.duration;
     log.wasAllowed = allowed;
     log.reason = reason;
-    snprintf(log.details, sizeof(log.details), "%s", request.reason);
+    snprintf(log.details, sizeof(log.details), "%.127s", request.reason);
     
     auditLog.push_back(log);
     

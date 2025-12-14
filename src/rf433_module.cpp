@@ -73,7 +73,7 @@ RF433Signal RF433Module::receiveSignal() {
     // Classify the signal
     signal.type = classifySignal(signal);
     snprintf(signal.description, sizeof(signal.description), 
-             "%s", getSignalTypeName(signal.type));
+             "%.63s", getSignalTypeName(signal.type));
     
     rcSwitch.resetAvailable();
     receivedCount++;
@@ -173,10 +173,10 @@ bool RF433Module::transmitSignal(const RF433Signal& signal, bool requireConfirma
     // Create transmit request
     TransmitRequest request;
     request.frequency = 433.92; // MHz
-    request.duration = signal.pulseLength * signal.bitLength * RF_433_REPEAT_TRANSMIT / 1000;
+    request.duration = calculateTransmissionDuration(signal);
     request.timestamp = millis();
     request.confirmed = !requireConfirmation; // If not requiring confirmation, mark as confirmed
-    snprintf(request.reason, sizeof(request.reason), "RF433: %s", signal.description);
+    snprintf(request.reason, sizeof(request.reason), "RF433: %.55s", signal.description);
     
     // Check policy
     TransmitPermission permission = Safety.checkTransmitPolicy(request);
@@ -263,10 +263,14 @@ void RF433Module::setRepeatTransmit(int repeat) {
     rcSwitch.setRepeatTransmit(repeat);
 }
 
+unsigned long RF433Module::calculateTransmissionDuration(const RF433Signal& signal) {
+    return signal.pulseLength * signal.bitLength * RF_433_REPEAT_TRANSMIT / 1000;
+}
+
 bool RF433Module::checkTransmitPolicy(const RF433Signal& signal) {
     TransmitRequest request;
     request.frequency = 433.92;
-    request.duration = signal.pulseLength * signal.bitLength * RF_433_REPEAT_TRANSMIT / 1000;
+    request.duration = calculateTransmissionDuration(signal);
     request.timestamp = millis();
     request.confirmed = false;
     

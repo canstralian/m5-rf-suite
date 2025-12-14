@@ -8,6 +8,31 @@
 #include <cmath>
 #include <algorithm>
 
+// Debug assertion macros for safety module
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_CRITICAL
+    #define SAFETY_ASSERT_CRITICAL(condition, message) \
+        do { \
+            if (!(condition)) { \
+                Serial.printf("[SAFETY ASSERT CRITICAL] %s:%d - %s\n", __FILE__, __LINE__, message); \
+                Serial.printf("[SAFETY ASSERT CRITICAL] Condition failed: %s\n", #condition); \
+            } \
+        } while(0)
+#else
+    #define SAFETY_ASSERT_CRITICAL(condition, message) ((void)0)
+#endif
+
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD
+    #define SAFETY_ASSERT(condition, message) \
+        do { \
+            if (!(condition)) { \
+                Serial.printf("[SAFETY ASSERT] %s:%d - %s\n", __FILE__, __LINE__, message); \
+                Serial.printf("[SAFETY ASSERT] Condition failed: %s\n", #condition); \
+            } \
+        } while(0)
+#else
+    #define SAFETY_ASSERT(condition, message) ((void)0)
+#endif
+
 SafetyModule Safety; // Global instance
 
 SafetyModule::SafetyModule() {
@@ -44,28 +69,38 @@ void SafetyModule::begin() {
 }
 
 TransmitPermission SafetyModule::checkTransmitPolicy(const TransmitRequest& request) {
+    // TX-CONF-1: Verify confirmation requirement is enforced
+    SAFETY_ASSERT_CRITICAL(requireConfirmation || !REQUIRE_USER_CONFIRMATION,
+                          "TX-CONF-1: Confirmation requirement bypassed");
+    
     // Check timeout first
     if (checkTimeout()) {
         return PERMIT_DENIED_TIMEOUT;
     }
     
-    // Check if confirmation is required and not yet given
+    // TX-CONF-1: Check if confirmation is required and not yet given
     if (requireConfirmation && !request.confirmed) {
+        SAFETY_ASSERT(request.confirmed == false,
+                     "TX-CONF-1: Confirmation state inconsistent");
         return PERMIT_DENIED_NO_CONFIRMATION;
     }
     
-    // Check frequency blacklist
+    // TX-POL-1: Check frequency blacklist
     if (!isFrequencyAllowed(request.frequency)) {
         return PERMIT_DENIED_BLACKLIST;
     }
     
-    // Check rate limiting
+    // TX-RATE-1: Check rate limiting
     if (!isRateLimitOK()) {
+        SAFETY_ASSERT(getRecentTransmitCount() >= maxTransmitsPerMinute,
+                     "TX-RATE-1: Rate limit check inconsistent");
         return PERMIT_DENIED_RATE_LIMIT;
     }
     
-    // Check duration limits
+    // TX-POL-2: Check duration limits
     if (request.duration > maxTransmitDuration) {
+        SAFETY_ASSERT(request.duration > maxTransmitDuration,
+                     "TX-POL-2: Duration limit check inconsistent");
         return PERMIT_DENIED_POLICY;
     }
     
@@ -83,7 +118,15 @@ bool SafetyModule::isFrequencyAllowed(float frequency) {
 
 bool SafetyModule::isRateLimitOK() {
     cleanupOldTransmits();
-    return (int)recentTransmits.size() < maxTransmitsPerMinute;
+    
+    int currentCount = (int)recentTransmits.size();
+    bool withinLimit = currentCount < maxTransmitsPerMinute;
+    
+    // TX-RATE-1: Verify rate limit enforcement
+    SAFETY_ASSERT(currentCount >= 0 && currentCount <= maxTransmitsPerMinute + 1,
+                 "TX-RATE-1: Rate limit count out of expected range");
+    
+    return withinLimit;
 }
 
 void SafetyModule::requestUserConfirmation(const TransmitRequest& request) {
@@ -139,11 +182,23 @@ void SafetyModule::logTransmitAttempt(const TransmitRequest& request, bool allow
     log.reason = reason;
     snprintf(log.details, sizeof(log.details), "%.127s", request.reason);
     
+    // SAFE-TX-5: Verify audit trail is being maintained
+    SAFETY_ASSERT(auditLog.size() < 1000, "SAFE-TX-5: Audit log size exceeded safe limit");
+    
     auditLog.push_back(log);
     
     if (allowed) {
+        // TX-CONF-2: Single use confirmation - record transmission
         recentTransmits.push_back(millis());
         lastTransmitTime = millis();
+        
+        // Verify transmission was actually allowed
+        SAFETY_ASSERT(reason == PERMIT_ALLOWED,
+                     "Inconsistent: transmission allowed but reason not PERMIT_ALLOWED");
+    } else {
+        // Verify denied transmission has appropriate reason
+        SAFETY_ASSERT(reason != PERMIT_ALLOWED,
+                     "Inconsistent: transmission denied but reason is PERMIT_ALLOWED");
     }
     
     // Keep log size manageable

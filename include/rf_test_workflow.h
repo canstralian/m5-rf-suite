@@ -51,6 +51,49 @@
 #define WORKFLOW_24G_MIN_OBSERVE_SEC 5
 
 // ============================================================================
+// DEBUG ASSERTIONS FOR WORKFLOW INVARIANTS
+// ============================================================================
+
+// Assertion macro that logs and handles violations
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_CRITICAL
+    #define WF_ASSERT_CRITICAL(condition, message) \
+        do { \
+            if (!(condition)) { \
+                Serial.printf("[ASSERT CRITICAL] %s:%d - %s\n", __FILE__, __LINE__, message); \
+                Serial.printf("[ASSERT CRITICAL] Condition failed: %s\n", #condition); \
+                handleAssertionFailure(message, true); \
+            } \
+        } while(0)
+#else
+    #define WF_ASSERT_CRITICAL(condition, message) ((void)0)
+#endif
+
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD
+    #define WF_ASSERT(condition, message) \
+        do { \
+            if (!(condition)) { \
+                Serial.printf("[ASSERT] %s:%d - %s\n", __FILE__, __LINE__, message); \
+                Serial.printf("[ASSERT] Condition failed: %s\n", #condition); \
+                handleAssertionFailure(message, false); \
+            } \
+        } while(0)
+#else
+    #define WF_ASSERT(condition, message) ((void)0)
+#endif
+
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_VERBOSE
+    #define WF_ASSERT_VERBOSE(condition, message) \
+        do { \
+            if (!(condition)) { \
+                Serial.printf("[ASSERT VERBOSE] %s:%d - %s\n", __FILE__, __LINE__, message); \
+                Serial.printf("[ASSERT VERBOSE] Condition failed: %s\n", #condition); \
+            } \
+        } while(0)
+#else
+    #define WF_ASSERT_VERBOSE(condition, message) ((void)0)
+#endif
+
+// ============================================================================
 // ENUMERATIONS
 // ============================================================================
 
@@ -333,6 +376,19 @@ private:
     bool isFrequencyBlacklisted(float frequency) const;
     uint32_t estimateTransmissionDuration(const CapturedSignalData& signal) const;
     bool wasAddressObserved(const char* address) const;
+    
+    // ========================================================================
+    // Assertion Handling
+    // ========================================================================
+    void handleAssertionFailure(const char* message, bool critical);
+    
+    // ========================================================================
+    // Invariant Verification (Debug Builds)
+    // ========================================================================
+    void verifyStateInvariants();
+    void verifySafetyInvariants();
+    void verifyResourceInvariants();
+    bool isTransmitterEnabled() const;
     
     // ========================================================================
     // Member Variables

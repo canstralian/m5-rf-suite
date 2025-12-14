@@ -161,6 +161,7 @@ struct CapturedSignalData {
     // COPY CONSTRUCTOR: Creates deep copy with independent buffer
     // Ownership: Allocates NEW buffer, source retains its buffer
     // Exception Safety: Strong guarantee via allocatePulseBuffer()
+    // Note: pulseCount initialized to 0, set by allocatePulseBuffer() on success
     // ========================================================================
     CapturedSignalData(const CapturedSignalData& other) :
         captureTime(other.captureTime), frequency(other.frequency),
@@ -171,6 +172,7 @@ struct CapturedSignalData {
         memcpy(protocol, other.protocol, sizeof(protocol));
         memcpy(deviceType, other.deviceType, sizeof(deviceType));
         // Deep copy: Allocate independent buffer with exception safety
+        // allocatePulseBuffer() sets pulseCount on successful allocation
         if (other.pulseTimes != nullptr && other.pulseCount > 0) {
             if (allocatePulseBuffer(other.pulseCount)) {
                 memcpy(pulseTimes, other.pulseTimes, other.pulseCount * sizeof(uint16_t));
@@ -241,14 +243,16 @@ struct CapturedSignalData {
             frequency = other.frequency;
             rssi = other.rssi;
             dataLength = other.dataLength;
-            pulseCount = other.pulseCount;
             isValid = other.isValid;
             memcpy(rawData, other.rawData, sizeof(rawData));
             memcpy(protocol, other.protocol, sizeof(protocol));
             memcpy(deviceType, other.deviceType, sizeof(deviceType));
             
-            // Transfer ownership: take buffer and nullify source
+            // Transfer ownership: take buffer pointer and count from source
             pulseTimes = other.pulseTimes;
+            pulseCount = other.pulseCount;
+            
+            // Nullify source to prevent double-free
             other.pulseTimes = nullptr;
             other.pulseCount = 0;
         }

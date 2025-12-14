@@ -995,6 +995,8 @@ void convertToCapturedSignal(const CapturedSignalData& src, RF433Signal& dst) {
     dst.timestamp = src.captureTime / 1000;
     dst.rssi = src.rssi;
     strncpy(dst.description, src.deviceType, sizeof(dst.description) - 1);
+    // Defensive: Explicitly null-terminate even though strncpy should handle it
+    // Protects against non-null-terminated source strings
     dst.description[sizeof(dst.description) - 1] = '\0';
     dst.isValid = src.isValid;
 }

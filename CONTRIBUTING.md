@@ -274,7 +274,7 @@ void RFTestWorkflow::processTxGatedState() {
         transitionToState(WF_READY, "Gate denied");
         return;
     }
-    LOG("Your new gate: PASSED");
+    LOG_INFO("Your new gate: PASSED");
     
     // Proceed to transmission only if ALL gates pass
     transitionToState(WF_TRANSMIT, "All gates passed");
@@ -626,7 +626,9 @@ void RFTestWorkflow::transmitTestBeacon() {
     
     // Store as "captured" signal (even though it's synthetic)
     captureBuffer.push_back(beacon);
-    selectedSignalIndex = captureBuffer.size() - 1;
+    if (captureBuffer.size() > 0) {
+        selectedSignalIndex = captureBuffer.size() - 1;
+    }
     
     // Go through normal TX gate process
     transitionToState(WF_TX_GATED, "Test beacon requested");

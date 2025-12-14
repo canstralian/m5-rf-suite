@@ -8,6 +8,12 @@
  * 3. Analyze captured signals
  * 4. Optionally transmit with gated approval
  * 5. Cleanup resources
+ * 
+ * Educational Features:
+ * - Demonstrates specific gate failure scenarios (policy, rate limit, band mismatch)
+ * - Shows detailed failure reasons to help users understand the safety model
+ * - Rotates through different outcomes on successive runs
+ * - Provides context for why transmissions are denied
  */
 
 #include <M5Core2.h>
@@ -222,13 +228,19 @@ void displayAbout() {
     M5.Lcd.println("");
     M5.Lcd.setTextSize(1);
     M5.Lcd.println("RF Test Workflow Example");
-    M5.Lcd.println("Version 1.0.0");
+    M5.Lcd.println("Version 1.1.0");
     M5.Lcd.println("");
     M5.Lcd.println("Demonstrates:");
     M5.Lcd.println("- Passive observation");
     M5.Lcd.println("- Signal analysis");
     M5.Lcd.println("- Gated transmission");
-    M5.Lcd.println("- Fail-safe modes");
+    M5.Lcd.println("- Gate failure scenarios");
+    M5.Lcd.println("- Detailed failure reasons");
+    M5.Lcd.println("");
+    M5.Lcd.setTextColor(CYAN);
+    M5.Lcd.println("Run multiple times to see");
+    M5.Lcd.println("different gate outcomes!");
+    M5.Lcd.setTextColor(WHITE);
     M5.Lcd.println("");
     M5.Lcd.println("Press any button...");
     
@@ -366,18 +378,88 @@ void manualWorkflowExecution() {
     delay(2000);
 }
 
+void displayGateFailure(const char* gateName, const char* reason, const char* details) {
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setCursor(0, 0);
+    M5.Lcd.setTextSize(2);
+    M5.Lcd.setTextColor(RED);
+    M5.Lcd.printf("%s: FAILED\n", gateName);
+    M5.Lcd.println("");
+    M5.Lcd.setTextSize(1);
+    M5.Lcd.setTextColor(YELLOW);
+    M5.Lcd.printf("Reason: %s\n", reason);
+    M5.Lcd.println("");
+    M5.Lcd.setTextColor(WHITE);
+    M5.Lcd.println("Details:");
+    M5.Lcd.println(details);
+    M5.Lcd.println("");
+    M5.Lcd.setTextColor(CYAN);
+    M5.Lcd.println("This demonstrates why");
+    M5.Lcd.println("transmissions fail.");
+    M5.Lcd.println("");
+    M5.Lcd.setTextColor(WHITE);
+    M5.Lcd.println("Press any button...");
+    
+    // Wait for button press
+    while (true) {
+        M5.update();
+        if (M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed()) {
+            break;
+        }
+        delay(10);
+    }
+}
+
 void executeGatedTransmission(int signalCount) {
     // Phase: TX_GATED
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.setCursor(0, 0);
+    M5.Lcd.setTextSize(1);
     M5.Lcd.println("State: TX_GATED");
     M5.Lcd.println("");
     M5.Lcd.println("Multi-stage approval:");
     M5.Lcd.println("");
     
+    // Simulate different gate scenarios based on signal count
+    // This helps users learn about different failure modes
+    int scenario = signalCount % 5; // Rotate through 5 scenarios
+    
     // Gate 1: Policy Check
     M5.Lcd.println("Gate 1: Policy check...");
     delay(500);
+    
+    // Scenario 1: Policy failure - blacklisted frequency
+    if (scenario == 1) {
+        M5.Lcd.setTextColor(RED);
+        M5.Lcd.println("  FAILED");
+        M5.Lcd.setTextColor(WHITE);
+        delay(1000);
+        
+        displayGateFailure(
+            "Gate 1: Policy",
+            "Blacklisted Frequency",
+            "Signal frequency 433.05 MHz\nis on the restricted list.\n\n"
+            "Emergency services and\naviation bands are blocked\nfor safety."
+        );
+        return;
+    }
+    
+    // Scenario 2: Policy failure - duration too long
+    if (scenario == 2) {
+        M5.Lcd.setTextColor(RED);
+        M5.Lcd.println("  FAILED");
+        M5.Lcd.setTextColor(WHITE);
+        delay(1000);
+        
+        displayGateFailure(
+            "Gate 1: Policy",
+            "Duration Limit Exceeded",
+            "Estimated TX duration: 8.2s\nMaximum allowed: 5.0s\n\n"
+            "This prevents excessive\nairtime usage."
+        );
+        return;
+    }
+    
     M5.Lcd.setTextColor(GREEN);
     M5.Lcd.println("  PASSED");
     M5.Lcd.setTextColor(WHITE);
@@ -404,10 +486,12 @@ void executeGatedTransmission(int signalCount) {
         }
         
         if (M5.BtnA.wasPressed()) {
-            M5.Lcd.fillScreen(BLACK);
-            M5.Lcd.setCursor(0, 0);
-            M5.Lcd.println("Transmission canceled");
-            delay(2000);
+            displayGateFailure(
+                "Gate 2: User Confirm",
+                "User Canceled",
+                "Transmission was explicitly\ncanceled by the operator.\n\n"
+                "Human oversight is a key\nsafety feature."
+            );
             return;
         }
         
@@ -415,13 +499,13 @@ void executeGatedTransmission(int signalCount) {
     }
     
     if (!confirmed) {
-        M5.Lcd.fillScreen(BLACK);
-        M5.Lcd.setCursor(0, 0);
-        M5.Lcd.setTextColor(RED);
-        M5.Lcd.println("Gate 2: TIMEOUT");
-        M5.Lcd.setTextColor(WHITE);
-        M5.Lcd.println("Transmission denied");
-        delay(2000);
+        displayGateFailure(
+            "Gate 2: User Confirm",
+            "Confirmation Timeout",
+            "No response within 10s.\n\n"
+            "User confirmation is required\nfor all transmissions.\n\n"
+            "Timeout prevents accidental\nor unattended TX."
+        );
         return;
     }
     
@@ -437,6 +521,23 @@ void executeGatedTransmission(int signalCount) {
     // Gate 3: Rate Limit
     M5.Lcd.println("Gate 3: Rate limit...");
     delay(500);
+    
+    // Scenario 3: Rate limit exceeded
+    if (scenario == 3) {
+        M5.Lcd.setTextColor(RED);
+        M5.Lcd.println("  FAILED");
+        M5.Lcd.setTextColor(WHITE);
+        delay(1000);
+        
+        displayGateFailure(
+            "Gate 3: Rate Limit",
+            "Too Many Transmissions",
+            "Rate: 12 TX in last 60s\nLimit: 10 TX per 60s\n\n"
+            "Rate limiting prevents\nexcessive RF usage and\nensures fair spectrum access."
+        );
+        return;
+    }
+    
     M5.Lcd.setTextColor(GREEN);
     M5.Lcd.println("  PASSED");
     M5.Lcd.setTextColor(WHITE);
@@ -445,6 +546,23 @@ void executeGatedTransmission(int signalCount) {
     // Gate 4: Band-Specific
     M5.Lcd.println("Gate 4: 433MHz check...");
     delay(500);
+    
+    // Scenario 4: Band-specific validation failure
+    if (scenario == 4) {
+        M5.Lcd.setTextColor(RED);
+        M5.Lcd.println("  FAILED");
+        M5.Lcd.setTextColor(WHITE);
+        delay(1000);
+        
+        displayGateFailure(
+            "Gate 4: Band Check",
+            "Invalid Pulse Timing",
+            "Pulse #23: 45us (too short)\nValid range: 100-10000us\n\n"
+            "Malformed signals can cause\ninterference or device damage."
+        );
+        return;
+    }
+    
     M5.Lcd.setTextColor(GREEN);
     M5.Lcd.println("  PASSED");
     M5.Lcd.setTextColor(WHITE);
@@ -470,5 +588,11 @@ void executeGatedTransmission(int signalCount) {
     M5.Lcd.setTextColor(GREEN);
     M5.Lcd.println("Transmission complete!");
     M5.Lcd.setTextColor(WHITE);
-    delay(2000);
+    M5.Lcd.println("");
+    M5.Lcd.setTextColor(CYAN);
+    M5.Lcd.println("All gates passed!");
+    M5.Lcd.println("This shows a successful");
+    M5.Lcd.println("multi-stage approval.");
+    M5.Lcd.setTextColor(WHITE);
+    delay(3000);
 }

@@ -356,6 +356,38 @@ struct StateTransitionLog {
     }
 };
 
+// Deterministic log event types
+enum DeterministicEventType {
+    DET_EVENT_STATE_ENTRY = 0,
+    DET_EVENT_STATE_EXIT = 1,
+    DET_EVENT_TRANSITION = 2,
+    DET_EVENT_ERROR = 3,
+    DET_EVENT_USER_ACTION = 4,
+    DET_EVENT_TIMEOUT = 5
+};
+
+// Deterministic log entry (machine-readable structured format)
+struct DeterministicLogEntry {
+    uint32_t sequenceNumber;        // Sequential entry number for ordering
+    uint32_t timestampMs;           // Millisecond timestamp
+    uint32_t timestampUs;           // Microsecond timestamp (for precision)
+    DeterministicEventType eventType;
+    WorkflowState state;            // Current state
+    WorkflowState prevState;        // Previous state (for transitions)
+    char event[32];                 // Event identifier
+    char reason[64];                // Reason/cause for event
+    char data[64];                  // Additional data (JSON fragment or key=value)
+    
+    DeterministicLogEntry() : 
+        sequenceNumber(0), timestampMs(0), timestampUs(0),
+        eventType(DET_EVENT_STATE_ENTRY),  // Default: STATE_ENTRY is chronologically first event
+        state(WF_IDLE), prevState(WF_IDLE) {
+        memset(event, 0, sizeof(event));
+        memset(reason, 0, sizeof(reason));
+        memset(data, 0, sizeof(data));
+    }
+};
+
 // ============================================================================
 // RF TEST WORKFLOW CLASS
 // ============================================================================
@@ -410,6 +442,17 @@ public:
     int getTransitionLogCount() const;
     const StateTransitionLog* getTransitionLog(int index) const;
     void clearLogs();
+    
+    // ========================================================================
+    // Deterministic Logging
+    // ========================================================================
+    void enableDeterministicLogging(bool enable);
+    bool isDeterministicLoggingEnabled() const;
+    int getDeterministicLogCount() const;
+    const DeterministicLogEntry* getDeterministicLog(int index) const;
+    String exportDeterministicLogsJSON() const;
+    String exportDeterministicLogsCSV() const;
+    void clearDeterministicLogs();
     
 private:
     // ========================================================================
@@ -476,6 +519,13 @@ private:
     uint32_t estimateTransmissionDuration(const CapturedSignalData& signal) const;
     bool wasAddressObserved(const char* address) const;
     
+    // Deterministic logging helpers
+    void logDeterministicEvent(DeterministicEventType eventType, const char* event, 
+                               const char* reason, const char* data = "");
+    void logStateEntry(WorkflowState state, const char* reason);
+    void logStateExit(WorkflowState state, const char* reason);
+    const char* getEventTypeName(DeterministicEventType type) const;
+    
     // ========================================================================
     // Member Variables
     // ========================================================================
@@ -510,6 +560,11 @@ private:
     
     // Audit trail
     std::vector<StateTransitionLog> transitionLog;
+    
+    // Deterministic logging
+    bool deterministicLoggingEnabled;
+    uint32_t deterministicLogSequence;
+    std::vector<DeterministicLogEntry> deterministicLog;
     
     // Timing
     uint32_t workflowStartTime;

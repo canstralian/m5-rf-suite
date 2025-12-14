@@ -229,6 +229,7 @@ The suite includes a comprehensive workflow system for structured RF testing:
 - **Fail-Safe Modes**: Timeout protection at every state
 - **Gated Transmission**: Multi-stage approval (Policy → Confirmation → Rate Limit → Band-Specific)
 - **Complete Traceability**: Microsecond-precision timing logs
+- **Deterministic Logging**: Machine-readable state transition logs for replay, debugging, and compliance
 
 See `WORKFLOWS.md` for detailed state diagrams and `PSEUDOCODE.md` for implementation details.
 
@@ -246,12 +247,19 @@ void setup() {
     config.listenMinTime = 5000;   // 5 seconds
     config.listenMaxTime = 60000;  // 60 seconds
     
+    // Enable deterministic logging for replay/debugging
+    workflow.enableDeterministicLogging(true);
+    
     workflow.initialize(config, &rf433, &rf24);
     workflow.start();  // Runs complete workflow
+    
+    // Export logs for analysis
+    String jsonLogs = workflow.exportDeterministicLogsJSON();
+    Serial.println(jsonLogs);
 }
 ```
 
-See `examples/rf_workflow_test/` for a complete working example.
+See `examples/rf_workflow_test/` for a complete working example, and `examples/deterministic_logging_demo/` for logging features.
 
 ## Architecture
 

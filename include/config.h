@@ -100,6 +100,10 @@ enum LogLevel {
 
 #define DEFAULT_LOG_LEVEL LOG_LEVEL_INFO
 
+// Deterministic logging
+#define ENABLE_DETERMINISTIC_LOGGING true  // Enable structured state transition logging
+#define DETERMINISTIC_LOG_MAX_ENTRIES 200  // Maximum number of deterministic log entries
+
 // ============================================================================
 // MENU CONFIGURATION
 // ============================================================================

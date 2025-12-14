@@ -734,6 +734,91 @@ The workflow integrates with `SafetyModule` at TX_GATED state:
 
 ## Logging and Audit Trail
 
+### Deterministic State Transition Logging
+
+The workflow system includes a deterministic logging mode that records every state entry, exit, and transition in a machine-readable format. This enables replay, debugging, and compliance review.
+
+#### Features
+
+- **State Entry/Exit Events**: Every state transition logs both entry and exit
+- **Transition Causes**: Explicit reasons for each transition
+- **User Actions**: All user interactions are logged
+- **Timeout Events**: Timeouts are recorded with elapsed time
+- **Error Tracking**: Errors logged with context
+- **Machine-Readable**: Structured format (JSON/CSV) for analysis
+
+#### Log Entry Structure
+
+```cpp
+struct DeterministicLogEntry {
+    uint32_t sequenceNumber;        // Sequential entry number for ordering
+    uint32_t timestampMs;           // Millisecond timestamp
+    uint32_t timestampUs;           // Microsecond timestamp (for precision)
+    DeterministicEventType eventType;  // STATE_ENTRY, STATE_EXIT, TRANSITION, etc.
+    WorkflowState state;            // Current state
+    WorkflowState prevState;        // Previous state
+    char event[32];                 // Event identifier
+    char reason[64];                // Reason/cause for event
+    char data[64];                  // Additional data
+};
+```
+
+#### Usage Example
+
+```cpp
+RFTestWorkflow workflow;
+
+// Enable deterministic logging
+workflow.enableDeterministicLogging(true);
+
+// Run workflow...
+workflow.start();
+
+// Export logs in JSON format
+String jsonLogs = workflow.exportDeterministicLogsJSON();
+Serial.println(jsonLogs);
+
+// Export logs in CSV format
+String csvLogs = workflow.exportDeterministicLogsCSV();
+Serial.println(csvLogs);
+```
+
+#### Log Format Examples
+
+**Serial Output:**
+```
+[DET_LOG] seq=0 ts_ms=1000 ts_us=1000000 type=STATE_EXIT state=IDLE prev=IDLE event=EXIT_IDLE reason=User started workflow data=
+[DET_LOG] seq=1 ts_ms=1001 ts_us=1001100 type=TRANSITION state=INIT prev=IDLE event=TRANSITION reason=User started workflow data=from=IDLE to=INIT
+[DET_LOG] seq=2 ts_ms=1002 ts_us=1002200 type=STATE_ENTRY state=INIT prev=IDLE event=ENTER_INIT reason=User started workflow data=
+```
+
+**JSON Export:**
+```json
+{
+  "workflow_logs": [
+    {
+      "seq": 0,
+      "timestamp_ms": 1000,
+      "timestamp_us": 1000000,
+      "event_type": "STATE_ENTRY",
+      "state": "INIT",
+      "prev_state": "IDLE",
+      "event": "ENTER_INIT",
+      "reason": "User started workflow",
+      "data": ""
+    }
+  ]
+}
+```
+
+**CSV Export:**
+```csv
+sequence,timestamp_ms,timestamp_us,event_type,state,prev_state,event,reason,data
+0,1000,1000000,STATE_ENTRY,INIT,IDLE,ENTER_INIT,User started workflow,
+```
+
+See `examples/deterministic_logging_demo/` for a complete demonstration.
+
 ### State Transition Logging
 
 Every state transition is logged with:

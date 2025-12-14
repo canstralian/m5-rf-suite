@@ -1,0 +1,213 @@
+{
+  "workflow_logs": [
+    {
+      "seq": 0,
+      "timestamp_ms": 1000,
+      "timestamp_us": 1000000,
+      "event_type": "STATE_EXIT",
+      "state": "IDLE",
+      "prev_state": "IDLE",
+      "event": "EXIT_IDLE",
+      "reason": "User started workflow",
+      "data": ""
+    },
+    {
+      "seq": 1,
+      "timestamp_ms": 1001,
+      "timestamp_us": 1001100,
+      "event_type": "TRANSITION",
+      "state": "INIT",
+      "prev_state": "IDLE",
+      "event": "TRANSITION",
+      "reason": "User started workflow",
+      "data": "from=IDLE to=INIT"
+    },
+    {
+      "seq": 2,
+      "timestamp_ms": 1002,
+      "timestamp_us": 1002200,
+      "event_type": "STATE_ENTRY",
+      "state": "INIT",
+      "prev_state": "IDLE",
+      "event": "ENTER_INIT",
+      "reason": "User started workflow",
+      "data": ""
+    },
+    {
+      "seq": 3,
+      "timestamp_ms": 2000,
+      "timestamp_us": 2000000,
+      "event_type": "STATE_EXIT",
+      "state": "INIT",
+      "prev_state": "IDLE",
+      "event": "EXIT_INIT",
+      "reason": "Init successful",
+      "data": ""
+    },
+    {
+      "seq": 4,
+      "timestamp_ms": 2001,
+      "timestamp_us": 2001100,
+      "event_type": "TRANSITION",
+      "state": "LISTENING",
+      "prev_state": "INIT",
+      "event": "TRANSITION",
+      "reason": "Init successful",
+      "data": "from=INIT to=LISTENING"
+    },
+    {
+      "seq": 5,
+      "timestamp_ms": 2002,
+      "timestamp_us": 2002200,
+      "event_type": "STATE_ENTRY",
+      "state": "LISTENING",
+      "prev_state": "INIT",
+      "event": "ENTER_LISTENING",
+      "reason": "Init successful",
+      "data": ""
+    },
+    {
+      "seq": 6,
+      "timestamp_ms": 5000,
+      "timestamp_us": 5000000,
+      "event_type": "USER_ACTION",
+      "state": "LISTENING",
+      "prev_state": "INIT",
+      "event": "TRIGGER_ANALYSIS",
+      "reason": "User manually triggered analysis",
+      "data": ""
+    },
+    {
+      "seq": 7,
+      "timestamp_ms": 5001,
+      "timestamp_us": 5001100,
+      "event_type": "STATE_EXIT",
+      "state": "LISTENING",
+      "prev_state": "INIT",
+      "event": "EXIT_LISTENING",
+      "reason": "User trigger",
+      "data": ""
+    },
+    {
+      "seq": 8,
+      "timestamp_ms": 5002,
+      "timestamp_us": 5002200,
+      "event_type": "TRANSITION",
+      "state": "ANALYZING",
+      "prev_state": "LISTENING",
+      "event": "TRANSITION",
+      "reason": "User trigger",
+      "data": "from=LISTENING to=ANALYZING"
+    },
+    {
+      "seq": 9,
+      "timestamp_ms": 5003,
+      "timestamp_us": 5003300,
+      "event_type": "STATE_ENTRY",
+      "state": "ANALYZING",
+      "prev_state": "LISTENING",
+      "event": "ENTER_ANALYZING",
+      "reason": "User trigger",
+      "data": ""
+    },
+    {
+      "seq": 10,
+      "timestamp_ms": 7000,
+      "timestamp_us": 7000000,
+      "event_type": "STATE_EXIT",
+      "state": "ANALYZING",
+      "prev_state": "LISTENING",
+      "event": "EXIT_ANALYZING",
+      "reason": "Analysis complete",
+      "data": ""
+    },
+    {
+      "seq": 11,
+      "timestamp_ms": 7001,
+      "timestamp_us": 7001100,
+      "event_type": "TRANSITION",
+      "state": "READY",
+      "prev_state": "ANALYZING",
+      "event": "TRANSITION",
+      "reason": "Analysis complete",
+      "data": "from=ANALYZING to=READY"
+    },
+    {
+      "seq": 12,
+      "timestamp_ms": 7002,
+      "timestamp_us": 7002200,
+      "event_type": "STATE_ENTRY",
+      "state": "READY",
+      "prev_state": "ANALYZING",
+      "event": "ENTER_READY",
+      "reason": "Analysis complete",
+      "data": ""
+    },
+    {
+      "seq": 13,
+      "timestamp_ms": 10000,
+      "timestamp_us": 10000000,
+      "event_type": "STATE_EXIT",
+      "state": "READY",
+      "prev_state": "ANALYZING",
+      "event": "EXIT_READY",
+      "reason": "Cleanup done",
+      "data": ""
+    },
+    {
+      "seq": 14,
+      "timestamp_ms": 10001,
+      "timestamp_us": 10001100,
+      "event_type": "TRANSITION",
+      "state": "CLEANUP",
+      "prev_state": "READY",
+      "event": "TRANSITION",
+      "reason": "Cleanup done",
+      "data": "from=READY to=CLEANUP"
+    },
+    {
+      "seq": 15,
+      "timestamp_ms": 10002,
+      "timestamp_us": 10002200,
+      "event_type": "STATE_ENTRY",
+      "state": "CLEANUP",
+      "prev_state": "READY",
+      "event": "ENTER_CLEANUP",
+      "reason": "Cleanup done",
+      "data": ""
+    },
+    {
+      "seq": 16,
+      "timestamp_ms": 11000,
+      "timestamp_us": 11000000,
+      "event_type": "STATE_EXIT",
+      "state": "CLEANUP",
+      "prev_state": "READY",
+      "event": "EXIT_CLEANUP",
+      "reason": "Cleanup done",
+      "data": ""
+    },
+    {
+      "seq": 17,
+      "timestamp_ms": 11001,
+      "timestamp_us": 11001100,
+      "event_type": "TRANSITION",
+      "state": "IDLE",
+      "prev_state": "CLEANUP",
+      "event": "TRANSITION",
+      "reason": "Cleanup done",
+      "data": "from=CLEANUP to=IDLE"
+    },
+    {
+      "seq": 18,
+      "timestamp_ms": 11002,
+      "timestamp_us": 11002200,
+      "event_type": "STATE_ENTRY",
+      "state": "IDLE",
+      "prev_state": "CLEANUP",
+      "event": "ENTER_IDLE",
+      "reason": "Cleanup done",
+      "data": ""
+    }
+  ]
+}

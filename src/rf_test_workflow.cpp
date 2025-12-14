@@ -25,6 +25,8 @@ RFTestWorkflow::RFTestWorkflow() :
     transmissionAttempts(0),
     lastError(WF_ERROR_NONE),
     errorCount(0),
+    deterministicLoggingEnabled(ENABLE_DETERMINISTIC_LOGGING),
+    deterministicLogSequence(0),
     workflowStartTime(0) {
 }
 
@@ -167,6 +169,8 @@ const CapturedSignalData* RFTestWorkflow::getCapturedSignal(int index) const {
 void RFTestWorkflow::triggerAnalysis() {
     if (currentState == WF_LISTENING) {
         Serial.println("[Workflow] User triggered analysis");
+        logDeterministicEvent(DET_EVENT_USER_ACTION, "TRIGGER_ANALYSIS", 
+                             "User manually triggered analysis", "");
         transitionToState(WF_ANALYZING, "User trigger");
     }
 }
@@ -175,6 +179,10 @@ void RFTestWorkflow::selectSignalForTransmission(int index) {
     if (currentState == WF_READY && index >= 0 && index < (int)captureBuffer.size()) {
         selectedSignalIndex = index;
         Serial.printf("[Workflow] Signal %d selected for transmission\n", index);
+        char data[64];
+        snprintf(data, sizeof(data), "signal_index=%d", index);
+        logDeterministicEvent(DET_EVENT_USER_ACTION, "SELECT_SIGNAL", 
+                             "User selected signal for transmission", data);
         transitionToState(WF_TX_GATED, "User requested transmission");
     }
 }
@@ -183,6 +191,8 @@ void RFTestWorkflow::confirmTransmission() {
     if (currentState == WF_TX_GATED) {
         userConfirmed = true;
         Serial.println("[Workflow] Transmission confirmed by user");
+        logDeterministicEvent(DET_EVENT_USER_ACTION, "CONFIRM_TX", 
+                             "User confirmed transmission", "");
     }
 }
 
@@ -190,12 +200,16 @@ void RFTestWorkflow::cancelTransmission() {
     if (currentState == WF_TX_GATED || currentState == WF_READY) {
         userCanceled = true;
         Serial.println("[Workflow] Transmission canceled by user");
+        logDeterministicEvent(DET_EVENT_USER_ACTION, "CANCEL_TX", 
+                             "User canceled transmission", "");
     }
 }
 
 void RFTestWorkflow::continueObservation() {
     if (currentState == WF_READY) {
         Serial.println("[Workflow] Continuing observation");
+        logDeterministicEvent(DET_EVENT_USER_ACTION, "CONTINUE_OBSERVATION", 
+                             "User requested more observation", "");
         transitionToState(WF_LISTENING, "User requested more observation");
     }
 }
@@ -244,6 +258,7 @@ const StateTransitionLog* RFTestWorkflow::getTransitionLog(int index) const {
 void RFTestWorkflow::clearLogs() {
     transitionLog.clear();
     errorLog.clear();
+    clearDeterministicLogs();
 }
 
 // ============================================================================
@@ -283,11 +298,17 @@ void RFTestWorkflow::transitionToState(WorkflowState newState, const char* reaso
     Serial.printf("[Workflow] State transition: %s -> %s (%s)\n",
                   getStateName(currentState), getStateName(newState), reason);
     
+    // Log state exit
+    logStateExit(currentState, reason);
+    
     logTransition(currentState, newState, reason);
     
     previousState = currentState;
     currentState = newState;
     stateEntryTime = millis();
+    
+    // Log state entry
+    logStateEntry(newState, reason);
 }
 
 bool RFTestWorkflow::checkTimeout() {
@@ -820,6 +841,155 @@ bool RFTestWorkflow::transmit24GHz(const CapturedSignalData& packet) {
 }
 
 // ============================================================================
+// Deterministic Logging Implementation
+// ============================================================================
+
+void RFTestWorkflow::enableDeterministicLogging(bool enable) {
+    deterministicLoggingEnabled = enable;
+    if (enable) {
+        Serial.println("[Workflow] Deterministic logging ENABLED");
+    } else {
+        Serial.println("[Workflow] Deterministic logging DISABLED");
+    }
+}
+
+bool RFTestWorkflow::isDeterministicLoggingEnabled() const {
+    return deterministicLoggingEnabled;
+}
+
+int RFTestWorkflow::getDeterministicLogCount() const {
+    return deterministicLog.size();
+}
+
+const DeterministicLogEntry* RFTestWorkflow::getDeterministicLog(int index) const {
+    if (index >= 0 && index < (int)deterministicLog.size()) {
+        return &deterministicLog[index];
+    }
+    return nullptr;
+}
+
+String RFTestWorkflow::exportDeterministicLogsJSON() const {
+    String json = "{\n  \"workflow_logs\": [\n";
+    
+    for (size_t i = 0; i < deterministicLog.size(); i++) {
+        const DeterministicLogEntry& entry = deterministicLog[i];
+        
+        json += "    {\n";
+        json += "      \"seq\": " + String(entry.sequenceNumber) + ",\n";
+        json += "      \"timestamp_ms\": " + String(entry.timestampMs) + ",\n";
+        json += "      \"timestamp_us\": " + String(entry.timestampUs) + ",\n";
+        json += "      \"event_type\": \"" + String(getEventTypeName(entry.eventType)) + "\",\n";
+        json += "      \"state\": \"" + String(getStateName(entry.state)) + "\",\n";
+        json += "      \"prev_state\": \"" + String(getStateName(entry.prevState)) + "\",\n";
+        json += "      \"event\": \"" + String(entry.event) + "\",\n";
+        json += "      \"reason\": \"" + String(entry.reason) + "\",\n";
+        json += "      \"data\": \"" + String(entry.data) + "\"\n";
+        json += "    }";
+        
+        if (i < deterministicLog.size() - 1) {
+            json += ",\n";
+        } else {
+            json += "\n";
+        }
+    }
+    
+    json += "  ]\n}";
+    return json;
+}
+
+String RFTestWorkflow::exportDeterministicLogsCSV() const {
+    String csv = "sequence,timestamp_ms,timestamp_us,event_type,state,prev_state,event,reason,data\n";
+    
+    for (const auto& entry : deterministicLog) {
+        csv += String(entry.sequenceNumber) + ",";
+        csv += String(entry.timestampMs) + ",";
+        csv += String(entry.timestampUs) + ",";
+        csv += String(getEventTypeName(entry.eventType)) + ",";
+        csv += String(getStateName(entry.state)) + ",";
+        csv += String(getStateName(entry.prevState)) + ",";
+        csv += String(entry.event) + ",";
+        csv += String(entry.reason) + ",";
+        csv += String(entry.data) + "\n";
+    }
+    
+    return csv;
+}
+
+void RFTestWorkflow::clearDeterministicLogs() {
+    deterministicLog.clear();
+    deterministicLogSequence = 0;
+    Serial.println("[Workflow] Deterministic logs cleared");
+}
+
+void RFTestWorkflow::logDeterministicEvent(DeterministicEventType eventType, 
+                                           const char* event, 
+                                           const char* reason, 
+                                           const char* data) {
+    if (!deterministicLoggingEnabled) return;
+    
+    // Check if we've exceeded the maximum log entries
+    if (deterministicLog.size() >= DETERMINISTIC_LOG_MAX_ENTRIES) {
+        // Remove oldest entry (FIFO)
+        deterministicLog.erase(deterministicLog.begin());
+    }
+    
+    DeterministicLogEntry entry;
+    entry.sequenceNumber = deterministicLogSequence++;
+    entry.timestampMs = millis();
+    entry.timestampUs = micros();
+    entry.eventType = eventType;
+    entry.state = currentState;
+    entry.prevState = previousState;
+    
+    strncpy(entry.event, event, sizeof(entry.event) - 1);
+    entry.event[sizeof(entry.event) - 1] = '\0';
+    
+    strncpy(entry.reason, reason, sizeof(entry.reason) - 1);
+    entry.reason[sizeof(entry.reason) - 1] = '\0';
+    
+    strncpy(entry.data, data, sizeof(entry.data) - 1);
+    entry.data[sizeof(entry.data) - 1] = '\0';
+    
+    deterministicLog.push_back(entry);
+    
+    // Output structured log to serial
+    Serial.printf("[DET_LOG] seq=%lu ts_ms=%lu ts_us=%lu type=%s state=%s prev=%s event=%s reason=%s data=%s\n",
+                  entry.sequenceNumber,
+                  entry.timestampMs,
+                  entry.timestampUs,
+                  getEventTypeName(eventType),
+                  getStateName(currentState),
+                  getStateName(previousState),
+                  event,
+                  reason,
+                  data);
+}
+
+void RFTestWorkflow::logStateEntry(WorkflowState state, const char* reason) {
+    char event[32];
+    snprintf(event, sizeof(event), "ENTER_%s", getStateName(state));
+    logDeterministicEvent(DET_EVENT_STATE_ENTRY, event, reason, "");
+}
+
+void RFTestWorkflow::logStateExit(WorkflowState state, const char* reason) {
+    char event[32];
+    snprintf(event, sizeof(event), "EXIT_%s", getStateName(state));
+    logDeterministicEvent(DET_EVENT_STATE_EXIT, event, reason, "");
+}
+
+const char* RFTestWorkflow::getEventTypeName(DeterministicEventType type) const {
+    switch (type) {
+        case DET_EVENT_STATE_ENTRY: return "STATE_ENTRY";
+        case DET_EVENT_STATE_EXIT: return "STATE_EXIT";
+        case DET_EVENT_TRANSITION: return "TRANSITION";
+        case DET_EVENT_ERROR: return "ERROR";
+        case DET_EVENT_USER_ACTION: return "USER_ACTION";
+        case DET_EVENT_TIMEOUT: return "TIMEOUT";
+        default: return "UNKNOWN";
+    }
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -828,6 +998,9 @@ void RFTestWorkflow::logError(WorkflowError error, const char* message) {
     errorCount++;
     errorLog.push_back(String(message));
     Serial.printf("[Workflow] ERROR: %s\n", message);
+    
+    // Log to deterministic log
+    logDeterministicEvent(DET_EVENT_ERROR, "ERROR", message, getErrorString(error));
 }
 
 void RFTestWorkflow::logTransition(WorkflowState fromState, WorkflowState toState, const char* reason) {
@@ -838,6 +1011,13 @@ void RFTestWorkflow::logTransition(WorkflowState fromState, WorkflowState toStat
     strncpy(log.reason, reason, sizeof(log.reason) - 1);
     
     transitionLog.push_back(log);
+    
+    // Log to deterministic log
+    char event[32];
+    snprintf(event, sizeof(event), "TRANSITION");
+    char data[64];
+    snprintf(data, sizeof(data), "from=%s to=%s", getStateName(fromState), getStateName(toState));
+    logDeterministicEvent(DET_EVENT_TRANSITION, event, reason, data);
 }
 
 uint32_t RFTestWorkflow::getTimeoutForState(WorkflowState state) const {
@@ -855,6 +1035,12 @@ uint32_t RFTestWorkflow::getTimeoutForState(WorkflowState state) const {
 
 void RFTestWorkflow::handleTimeout() {
     logError(WF_ERROR_TIMEOUT, "State timeout");
+    
+    // Log timeout event
+    char data[64];
+    snprintf(data, sizeof(data), "state=%s elapsed=%lu", 
+             getStateName(currentState), millis() - stateEntryTime);
+    logDeterministicEvent(DET_EVENT_TIMEOUT, "TIMEOUT", "State timeout exceeded", data);
     
     switch (currentState) {
         case WF_INIT:

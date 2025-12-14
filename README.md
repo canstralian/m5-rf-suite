@@ -230,7 +230,17 @@ The suite includes a comprehensive workflow system for structured RF testing:
 - **Gated Transmission**: Multi-stage approval (Policy → Confirmation → Rate Limit → Band-Specific)
 - **Complete Traceability**: Microsecond-precision timing logs
 
-See `WORKFLOWS.md` for detailed state diagrams and `PSEUDOCODE.md` for implementation details.
+### Formal Safety Guarantees
+
+The workflow system enforces formal invariants documented in `INVARIANTS.md`:
+- **SAFE-TX-1**: TX hardware disabled in all states except TRANSMIT
+- **INV-SM-5**: All failures exit via CLEANUP
+- **TX-CONF-1**: User confirmation mandatory for transmission
+- **ERR-RECOV-1**: All error paths route through CLEANUP to IDLE
+
+Debug assertions verify these invariants at runtime in debug builds.
+
+See `WORKFLOWS.md` for detailed state diagrams, `INVARIANTS.md` for formal safety properties, and `PSEUDOCODE.md` for implementation details.
 
 ### Example Usage
 

@@ -69,9 +69,9 @@ void SafetyModule::begin() {
 }
 
 TransmitPermission SafetyModule::checkTransmitPolicy(const TransmitRequest& request) {
-    // TX-CONF-1: Verify confirmation requirement is enforced
-    SAFETY_ASSERT_CRITICAL(requireConfirmation || !REQUIRE_USER_CONFIRMATION,
-                          "TX-CONF-1: Confirmation requirement bypassed");
+    // TX-CONF-1: Verify confirmation requirement is enforced (not bypassed at runtime)
+    SAFETY_ASSERT_CRITICAL(!REQUIRE_USER_CONFIRMATION || requireConfirmation,
+                          "TX-CONF-1: Confirmation requirement bypassed at runtime");
     
     // Check timeout first
     if (checkTimeout()) {
@@ -99,8 +99,8 @@ TransmitPermission SafetyModule::checkTransmitPolicy(const TransmitRequest& requ
     
     // TX-POL-2: Check duration limits
     if (request.duration > maxTransmitDuration) {
-        SAFETY_ASSERT(request.duration > maxTransmitDuration,
-                     "TX-POL-2: Duration limit check inconsistent");
+        SAFETY_ASSERT(maxTransmitDuration > 0,
+                     "TX-POL-2: Duration limit not properly configured");
         return PERMIT_DENIED_POLICY;
     }
     

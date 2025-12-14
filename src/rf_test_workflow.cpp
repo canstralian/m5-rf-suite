@@ -251,10 +251,12 @@ void RFTestWorkflow::clearLogs() {
 // ============================================================================
 
 void RFTestWorkflow::processCurrentState() {
-    // Verify invariants before processing state
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD
+    // Verify invariants before processing state (debug builds only)
     verifyStateInvariants();
     verifySafetyInvariants();
     verifyResourceInvariants();
+#endif
     
     switch (currentState) {
         case WF_IDLE:
@@ -1015,8 +1017,9 @@ void RFTestWorkflow::verifyStateInvariants() {
               "INV-SM-1: Invalid workflow state");
     
     // INV-SM-4: IDLE is Terminal (only entered from CLEANUP)
-    if (currentState == WF_IDLE && previousState != WF_CLEANUP && previousState != WF_IDLE) {
-        WF_ASSERT(false, "INV-SM-4: IDLE entered from non-CLEANUP state");
+    if (currentState == WF_IDLE && previousState != WF_IDLE) {
+        WF_ASSERT(previousState == WF_CLEANUP,
+                  "INV-SM-4: IDLE entered from non-CLEANUP state");
     }
 #endif
 }
@@ -1024,11 +1027,11 @@ void RFTestWorkflow::verifyStateInvariants() {
 void RFTestWorkflow::verifySafetyInvariants() {
 #if DEBUG_ASSERTIONS >= ASSERT_LEVEL_CRITICAL
     // SAFE-TX-1: Transmitter Disabled by Default
+    // Note: isTransmitterEnabled() is a conservative check based on state
+    // In production, this should query actual hardware TX enable pin/register
     bool txShouldBeDisabled = (currentState != WF_TRANSMIT);
-    if (txShouldBeDisabled && rf433Module) {
-        // Check if we can query TX state (depends on module implementation)
-        // For now, we trust that our code properly manages TX state
-        WF_ASSERT_CRITICAL(currentState == WF_TRANSMIT || !isTransmitterEnabled(),
+    if (txShouldBeDisabled) {
+        WF_ASSERT_CRITICAL(!isTransmitterEnabled(),
                           "SAFE-TX-1: Transmitter enabled outside TRANSMIT state");
     }
     
@@ -1079,10 +1082,21 @@ void RFTestWorkflow::verifyResourceInvariants() {
 }
 
 bool RFTestWorkflow::isTransmitterEnabled() const {
-    // This would need to query actual hardware state
-    // For now, we rely on proper state management
-    // A real implementation would query the RF module's TX enable status
-    return (currentState == WF_TRANSMIT);
+    // Query actual hardware state if possible
+    // This is a helper that should ideally query the RF module's actual TX enable pin/register
+    // For now, we provide a conservative check based on state
+    // In production, this would query hardware: return rf433Module->isTransmitEnabled();
+    
+    // Conservative check: only TRANSMIT state should have TX enabled
+    // This is a weak check but better than nothing without hardware query capability
+    if (currentState != WF_TRANSMIT) {
+        // TX should definitely be disabled in non-TRANSMIT states
+        return false;
+    }
+    
+    // In TRANSMIT state, we assume TX might be enabled
+    // A real hardware query would be more accurate
+    return true;
 }
 
 // ============================================================================

@@ -129,13 +129,19 @@ void runDryRunTest() {
     // Create a simulated signal for testing
     Serial.println("\n--- Creating Test Signal ---");
     CapturedSignalData testSignal;
+    // Initialize all fields explicitly
+    testSignal.captureTime = micros();
     testSignal.frequency = 433.92;
     testSignal.rssi = -45;
     testSignal.dataLength = 24;
     testSignal.pulseCount = 48;
+    testSignal.pulseTimes = nullptr;  // No pulse data needed for dry-run test
     testSignal.isValid = true;
-    strncpy(testSignal.protocol, "Protocol 1", sizeof(testSignal.protocol));
-    strncpy(testSignal.deviceType, "Remote Control", sizeof(testSignal.deviceType));
+    memset(testSignal.rawData, 0, sizeof(testSignal.rawData));
+    strncpy(testSignal.protocol, "Protocol 1", sizeof(testSignal.protocol) - 1);
+    testSignal.protocol[sizeof(testSignal.protocol) - 1] = '\0';
+    strncpy(testSignal.deviceType, "Remote Control", sizeof(testSignal.deviceType) - 1);
+    testSignal.deviceType[sizeof(testSignal.deviceType) - 1] = '\0';
     
     Serial.printf("Test Signal: %.2f MHz, RSSI: %d dBm\n", 
                   testSignal.frequency, testSignal.rssi);
@@ -197,8 +203,12 @@ void runDryRunTest() {
     Serial.printf("Protocol: %s\n", testSignal.protocol);
     Serial.printf("Device Type: %s\n", testSignal.deviceType);
     
-    // Simulate the transmission delay
-    delay(100);
+    // Simulate transmission delay (similar to actual workflow)
+    // In real workflow, this would call estimateTransmissionDuration()
+    // For this simple test, we use a reasonable fixed delay
+    unsigned long simulatedDuration = 50;  // Typical transmission time in ms
+    Serial.printf("Estimated transmission time: %lu ms\n", simulatedDuration);
+    delay(simulatedDuration);
     
     Serial.println("Simulated transmission complete");
     M5.Lcd.println("Simulation OK!");

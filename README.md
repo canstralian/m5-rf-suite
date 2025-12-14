@@ -320,13 +320,21 @@ The safety module enforces a multi-layered approach:
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! This project has specific architectural principles that must be maintained:
+
+- **Passive-First**: Always observe before transmitting
+- **Gated-TX**: All transmissions must pass through multiple approval gates
+- **Fail-Closed**: System defaults to safe state on errors
+
+**Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.**
+
+Quick start:
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+3. Make your changes following the guidelines in CONTRIBUTING.md
+4. Test thoroughly (including safety features)
+5. Submit a pull request with clear description
 
 ## License
 

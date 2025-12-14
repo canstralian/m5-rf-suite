@@ -1,200 +1,308 @@
-# m5-rf-suite  
-**M5Stack-based RF Tool Suite for 433 MHz and 2.4 GHz**
+# M5Stack RF Suite
 
----
+A comprehensive, modular RF tool suite running on M5Stack/ESP32-class devices, supporting both 433 MHz and 2.4 GHz operations with safe-by-default workflows.
 
 ## Overview
 
-`m5-rf-suite` is a modular RF experimentation and analysis platform built on the **M5Stack (ESP32)** ecosystem. It provides a unified, device-local interface for interacting with **433 MHz (sub-GHz)** and **2.4 GHz** radio systems using external RF modules and the ESP32’s native radio capabilities.
+M5Stack RF Suite is a security-focused toolkit for working with RF signals across multiple frequency bands. It provides:
 
-This project is designed as an **instrument**, not a gadget: a tight feedback loop where RF behavior can be observed, decoded, modified, and retransmitted with minimal abstraction leakage.
+- **433 MHz Operations**: Receive, classify, and optionally transmit signals (OOK/ASK modulation for consumer devices like remotes, doorbells, garage doors)
+- **2.4 GHz Operations**: ESP-NOW peer-to-peer communication, Wi-Fi scanning, and BLE device scanning
+- **Safe-by-Default Design**: All transmissions require explicit user confirmation with policy enforcement
 
-Primary goals:
+## Features
 
-- Build intuition about real-world RF behavior  
-- Maintain clear separation between hardware drivers, RF logic, and UI  
-- Support multiple RF front-ends with a shared control surface  
-- Enable low-impact, inspectable experimentation  
+### 433 MHz Module
+- **Signal Reception**: Decode OOK/ASK signals from common consumer devices
+- **Signal Classification**: Automatic classification of signal types (doorbells, garage doors, remotes, etc.)
+- **Signal Storage**: Save and replay captured signals
+- **Safe Transmission**: Transmit signals only with explicit user confirmation
+- **Protocol Support**: Multiple protocols via RCSwitch library
 
----
+### 2.4 GHz Module
+- **ESP-NOW**: Peer-to-peer communication between ESP32 devices
+- **Wi-Fi Scanner**: Scan and analyze nearby Wi-Fi networks
+- **BLE Scanner**: Discover and list Bluetooth Low Energy devices
+- **Multi-mode Support**: Switch between different 2.4 GHz modes
 
-## Supported Frequency Bands
-
-### 433 MHz (Sub-GHz)
-
-Typical targets:
-- Remote controls
-- Weather sensors
-- Smart outlets
-- Doorbells
-- Simple telemetry devices
-
-Characteristics:
-- Narrowband
-- Simple modulation schemes
-- Often stateless
-- Replay-friendly
-
-Common modulations:
-- OOK (On-Off Keying)
-- ASK (Amplitude Shift Keying)
-- FSK (Frequency Shift Keying)
-
-Primary module:
-- **CC1101**
-
----
-
-### 2.4 GHz
-
-Typical targets:
-- Proprietary wireless peripherals
-- IoT devices
-- Short-range control links
-- Telemetry systems
-
-Characteristics:
-- Packetized communication
-- Channelized spectrum
-- Strict timing constraints
-- Heavy coexistence (Wi-Fi, BLE, proprietary protocols)
-
-Primary modules:
-- **nRF24L01+**
-- ESP32 internal radio (select modes)
-
----
+### Safety Features
+- **Mandatory Confirmation**: All transmissions require button press confirmation
+- **Frequency Blacklist**: Block transmission on prohibited frequencies
+- **Rate Limiting**: Prevent excessive transmissions
+- **Audit Logging**: Track all transmission attempts
+- **Timeout Protection**: Auto-cancel pending transmissions
+- **Policy Enforcement**: Configurable transmission policies
 
 ## Hardware Requirements
 
-### Core Platform
-- M5Stack Core / Core2 / CoreS3 (ESP32-based)
-- USB-C or Micro-USB cable
-- MicroSD card (recommended for logging)
+### Supported Devices
+- M5Stack Core2
+- M5Stack Fire
+- M5Stick-C
+- Other ESP32-based M5Stack devices
 
-### RF Modules
-- CC1101 (433 MHz)
-- nRF24L01+ (2.4 GHz)
+### Required Components
+- **433 MHz Receiver**: Connect to GPIO 36 (configurable in `config.h`)
+- **433 MHz Transmitter**: Connect to GPIO 26 (configurable in `config.h`)
+- Built-in 2.4 GHz radio (ESP32 Wi-Fi/BLE)
 
-### Optional
-- External antennas (433 MHz / 2.4 GHz)
-- Logic analyzer
-- RF shielding enclosure (lab use)
+### Pin Configuration
+Default pins (adjust in `include/config.h`):
+```cpp
+#define RF_433_RX_PIN 36  // 433 MHz receiver
+#define RF_433_TX_PIN 26  // 433 MHz transmitter
+```
 
----
+## Installation
 
-## Software Architecture
+### Using PlatformIO (Recommended)
 
-The system is structured in layers to prevent RF logic, hardware access, and UI from collapsing into a single monolith.
+1. Clone this repository:
+```bash
+git clone https://github.com/canstralian/m5-rf-suite.git
+cd m5-rf-suite
+```
 
-### High-Level Layers
+2. Build and upload:
+```bash
+pio run --target upload
+```
 
-UI Layer
-└── RF Control Layer
-├── Protocol Logic
-└── Radio Abstraction
-├── CC1101 Driver
-└── nRF24 / ESP32 Radio Driver
+3. Monitor serial output:
+```bash
+pio device monitor
+```
 
-### Key Principles
+### Using Arduino IDE
 
-- **Radio-agnostic core**: Shared logic where possible  
-- **Module isolation**: Each RF front-end owns its timing and constraints  
-- **State visibility**: No “magic” background behavior  
-- **Fail-loud defaults**: Invalid states surface immediately  
+1. Install required libraries:
+   - M5Core2 (or M5Stack/M5StickC depending on your device)
+   - RCSwitch
+   - ArduinoJson
+   - ESP32Servo
 
----
+2. Copy the `src/` and `include/` files to your Arduino project
 
-## Core Features
+3. Select your M5Stack board and upload
 
-### RF Scanning
-- Frequency or channel scanning
-- RSSI observation
-- Activity visualization
+## Usage
 
-### Signal Capture
-- Raw pulse timing (433 MHz)
-- Packet capture (2.4 GHz)
-- Timestamped buffers
+### Main Application
 
-### Protocol Analysis
-- Pulse width statistics
-- Symbol classification
-- Basic protocol fingerprinting
+The main application provides a menu-driven interface with the following options:
 
-### Transmission
-- Controlled replay
-- Parameterized payload injection
-- Power and timing adjustment
+1. **433MHz Scanner**: Passively receive and decode 433 MHz signals
+2. **433MHz Transmit**: Replay captured signals (requires confirmation)
+3. **WiFi Scanner**: Scan for nearby Wi-Fi networks
+4. **BLE Scanner**: Discover Bluetooth devices
+5. **ESP-NOW**: Peer-to-peer communication
+6. **Settings**: View statistics and configuration
+7. **About**: Version and system information
 
-### UI & Control
-- On-device display
-- Physical button input
-- Real-time parameter tuning
+### Button Controls
 
----
+- **Button A (Left)**: Previous / Back
+- **Button B (Center)**: Select / Action
+- **Button C (Right)**: Next / Forward
 
-## Safety & Ethics
+### Safety Workflow
 
-This tool is intended for **authorized experimentation only**.
+When transmitting signals:
 
-- Operate only on devices you own or have explicit permission to test  
-- Respect local RF regulations and power limits  
-- Avoid interference with safety-critical systems  
-- Use shielding and low-power modes during development  
+1. Select a captured signal
+2. Press transmit button
+3. **WARNING** dialog appears
+4. Press B to confirm (or A to cancel within timeout)
+5. Transmission occurs only after confirmation
+6. Result displayed on screen
 
-RF is shared infrastructure. Treat it accordingly.
+## Examples
 
----
+### 433 MHz Scanner
+```cpp
+#include "rf433_module.h"
 
-## Build & Flash
+RF433Module rf433;
 
-### Toolchain
-- Arduino IDE or PlatformIO
-- ESP32 board support package
-- Required libraries listed in `platformio.ini` or `lib/`
+void setup() {
+    rf433.begin();
+}
 
-### General Steps
-1. Clone repository  
-2. Configure target M5Stack variant  
-3. Select enabled RF modules  
-4. Build and flash via USB  
+void loop() {
+    if (rf433.isSignalAvailable()) {
+        RF433Signal signal = rf433.receiveSignal();
+        // Process signal...
+    }
+}
+```
 
----
+### Wi-Fi Scanner
+```cpp
+#include "rf24_module.h"
 
-## Extensibility
+RF24Module rf24;
 
-`m5-rf-suite` is intentionally modular.
+void setup() {
+    rf24.begin();
+    rf24.startWiFiScan(true);
+}
 
-You can extend it by:
-- Adding new RF front-ends
-- Implementing additional protocol decoders
-- Enhancing visualization modes
-- Exporting captured data for offline analysis
+void loop() {
+    if (rf24.isWiFiScanComplete()) {
+        int count = rf24.getWiFiNetworkCount();
+        for (int i = 0; i < count; i++) {
+            WiFiNetworkInfo network = rf24.getWiFiNetwork(i);
+            // Process network...
+        }
+    }
+}
+```
 
-New modules should conform to the radio abstraction interface to ensure compatibility with the UI and logging subsystems.
+### ESP-NOW Communication
+```cpp
+#include "rf24_module.h"
 
----
+RF24Module rf24;
 
-## Project Philosophy
+void setup() {
+    rf24.begin();
+    rf24.initESPNow();
+}
 
-RF is not clean.  
-It is noisy, lossy, probabilistic, and shaped by physics as much as code.
+void loop() {
+    if (rf24.hasReceivedMessage()) {
+        ESPNowMessage msg = rf24.getReceivedMessage();
+        // Process message...
+    }
+}
+```
 
-This project treats RF systems the way debuggers treat software:  
-observe first, hypothesize second, act deliberately.
+See the `examples/` directory for complete working examples.
 
----
+## Configuration
+
+Edit `include/config.h` to customize:
+
+- Pin assignments
+- Protocol parameters
+- Safety settings
+- UI colors and layout
+- Logging options
+- Storage settings
+
+### Key Configuration Options
+
+```cpp
+// Safety settings
+#define REQUIRE_USER_CONFIRMATION true
+#define TRANSMIT_TIMEOUT 10000  // ms
+#define MAX_TRANSMIT_DURATION 5000  // ms
+
+// 433 MHz settings
+#define RF_433_RX_PIN 36
+#define RF_433_TX_PIN 26
+#define RF_433_PROTOCOL_DEFAULT 1
+#define RF_433_PULSE_LENGTH 350
+
+// Rate limiting
+maxTransmitsPerMinute = 10;  // In safety_module.cpp
+```
+
+## Architecture
+
+### Module Structure
+
+```
+m5-rf-suite/
+├── include/              # Header files
+│   ├── config.h         # Configuration constants
+│   ├── rf433_module.h   # 433 MHz operations
+│   ├── rf24_module.h    # 2.4 GHz operations
+│   ├── safety_module.h  # Safety and policy enforcement
+│   └── ui_module.h      # User interface (header only)
+├── src/                 # Implementation files
+│   ├── main.cpp         # Main application
+│   ├── rf433_module.cpp # 433 MHz implementation
+│   ├── rf24_module.cpp  # 2.4 GHz implementation
+│   └── safety_module.cpp # Safety implementation
+├── examples/            # Example applications
+│   ├── 433mhz_scanner/
+│   ├── wifi_scanner/
+│   └── espnow_test/
+└── platformio.ini       # Build configuration
+```
+
+### Safety Architecture
+
+The safety module enforces a multi-layered approach:
+
+1. **User Confirmation Layer**: Requires explicit button press
+2. **Policy Layer**: Checks frequency blacklists and duration limits
+3. **Rate Limiting Layer**: Prevents excessive transmissions
+4. **Audit Layer**: Logs all transmission attempts
+5. **Timeout Layer**: Auto-cancels stale requests
+
+## Legal and Safety Notice
+
+⚠️ **IMPORTANT**: This tool is for educational and authorized testing purposes only.
+
+- Always comply with local RF regulations (FCC, CE, etc.)
+- Obtain proper authorization before testing in production environments
+- Be aware of frequency allocations and restrictions in your country
+- Transmitting on certain frequencies may be illegal without a license
+- The developers assume no liability for misuse of this software
+
+### Responsible Use Guidelines
+
+- **DO**: Use for learning, authorized security testing, and research
+- **DO**: Respect privacy and property rights
+- **DON'T**: Jam, disrupt, or interfere with critical services
+- **DON'T**: Transmit on emergency or aviation frequencies
+- **DON'T**: Use for unauthorized access or malicious purposes
+
+## Security Considerations
+
+- The 433 MHz module can capture and replay signals from nearby devices
+- Ensure physical security of the device when containing sensitive signals
+- Be aware that many consumer RF devices use insecure protocols
+- This tool demonstrates security weaknesses in RF communication
+- Use responsibly and ethically
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
 ## License
 
-Specify license here (MIT, GPL-v3, BSD, etc.)
+See LICENSE file for details.
 
----
+## Acknowledgments
 
-## Disclaimer
+- M5Stack for hardware platform
+- RCSwitch library for 433 MHz protocol support
+- ESP32 community for ESP-NOW and BLE examples
+- Security researchers who inspire responsible disclosure
 
-This project is provided **as-is**, without warranty.  
-The authors are not responsible for misuse, regulatory violations, or unintended interference.
+## Support
 
-Experiment carefully.
+For issues, questions, or contributions:
+- GitHub Issues: [Report bugs or request features](https://github.com/canstralian/m5-rf-suite/issues)
+- Documentation: See comments in header files
+- Examples: Check the `examples/` directory
+
+## Changelog
+
+### Version 1.0.0 (2025-12-14)
+- Initial release
+- 433 MHz receive/transmit with classification
+- 2.4 GHz Wi-Fi, BLE, and ESP-NOW support
+- Safe-by-default transmission workflow
+- Multi-layered safety enforcement
+- Menu-driven UI for M5Stack
+- Example applications included

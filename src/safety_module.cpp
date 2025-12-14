@@ -8,6 +8,9 @@
 #include <cmath>
 #include <algorithm>
 
+// Forward declaration for assertion handler
+void handleSafetyAssertionFailure(const char* message, bool critical);
+
 // Debug assertion macros for safety module
 #if DEBUG_ASSERTIONS >= ASSERT_LEVEL_CRITICAL
     #define SAFETY_ASSERT_CRITICAL(condition, message) \
@@ -15,6 +18,7 @@
             if (!(condition)) { \
                 Serial.printf("[SAFETY ASSERT CRITICAL] %s:%d - %s\n", __FILE__, __LINE__, message); \
                 Serial.printf("[SAFETY ASSERT CRITICAL] Condition failed: %s\n", #condition); \
+                handleSafetyAssertionFailure(message, true); \
             } \
         } while(0)
 #else
@@ -27,11 +31,41 @@
             if (!(condition)) { \
                 Serial.printf("[SAFETY ASSERT] %s:%d - %s\n", __FILE__, __LINE__, message); \
                 Serial.printf("[SAFETY ASSERT] Condition failed: %s\n", #condition); \
+                handleSafetyAssertionFailure(message, false); \
             } \
         } while(0)
 #else
     #define SAFETY_ASSERT(condition, message) ((void)0)
 #endif
+
+// Safety assertion failure handler
+void handleSafetyAssertionFailure(const char* message, bool critical) {
+    // Log to serial
+    Serial.println("========================================");
+    Serial.println("SAFETY ASSERTION FAILURE");
+    Serial.printf("Message: %s\n", message);
+    Serial.printf("Critical: %s\n", critical ? "YES" : "NO");
+    Serial.println("========================================");
+    
+    if (critical) {
+        // For critical safety violations, deny all future transmissions
+        // Note: This affects global Safety instance
+        Safety.setRequireConfirmation(true);
+        Safety.setRateLimit(0);  // Block all transmissions
+        
+        Serial.println("[SAFETY CRITICAL] System locked - no transmissions allowed");
+        Serial.flush();
+        
+        // Optionally halt (configurable)
+        #ifdef WF_ASSERT_HALT_ON_CRITICAL
+            #if WF_ASSERT_HALT_ON_CRITICAL
+                Serial.println("[SAFETY CRITICAL] HALTING EXECUTION");
+                Serial.flush();
+                while(1) { delay(1000); }
+            #endif
+        #endif
+    }
+}
 
 SafetyModule Safety; // Global instance
 

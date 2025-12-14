@@ -1036,10 +1036,9 @@ void RFTestWorkflow::verifySafetyInvariants() {
     }
     
     // TX-CONF-1: Confirmation Required for TRANSMIT
-    if (currentState == WF_TRANSMIT) {
-        // Note: userConfirmed flag is reset after gate check, so we can't verify it here
-        // This check would be better placed right before entering TRANSMIT
-    }
+    // Note: Cannot verify confirmation flag here due to lifecycle - it's reset after
+    // gate checks complete. Actual verification happens in processTxGatedState()
+    // at checkConfirmationGate() (line ~738). See INVARIANTS.md Known Limitations.
 #endif
 
 #if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD

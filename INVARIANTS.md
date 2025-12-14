@@ -506,6 +506,39 @@ Use this checklist when reviewing code changes:
 
 ---
 
+## Known Limitations
+
+### Hardware State Verification
+
+**Limitation**: The current implementation of `isTransmitterEnabled()` in `rf_test_workflow.cpp` performs state-based checking rather than querying actual hardware TX enable state.
+
+**Impact**: 
+- Assertions verify state consistency but cannot detect hardware-level bugs
+- If code bypasses state management and directly enables TX, assertions won't catch it
+- SAFE-TX-1 verification is limited to state-level consistency
+
+**Mitigation**:
+- Code review emphasis on all TX enable/disable calls
+- Future enhancement to add hardware query capability
+- RF433Module should expose `getTransmitEnabled()` method
+
+**Tracking**: See TODO comments in `rf_test_workflow.cpp` lines 1085-1093
+
+### Confirmation Flag Lifecycle
+
+**Limitation**: TX-CONF-1 assertion cannot be verified in `verifySafetyInvariants()` because the confirmation flag is reset after gate checks complete.
+
+**Impact**:
+- Assertion would always fail after successful gate passage
+- Cannot verify confirmation in post-TRANSMIT state
+
+**Mitigation**:
+- Confirmation checked in TX_GATED gate processing (line 738-756)
+- Gate logging provides audit trail of confirmation
+- Multi-gate architecture ensures confirmation cannot be bypassed
+
+**Future Enhancement**: Add separate flag to track "was confirmed" vs "is pending confirmation"
+
 ## Maintenance Notes
 
 ### Adding New States

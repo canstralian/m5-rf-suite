@@ -7,6 +7,7 @@
  */
 
 #include <M5Core2.h>
+#include <algorithm>
 #include "config.h"
 #include "rf433_module.h"
 #include "rf24_module.h"
@@ -372,7 +373,7 @@ void displayRF433Scanner() {
     M5.Lcd.println("Recent signals:");
     y += 15;
     
-    int startIdx = max(0, capturedSignalCount - 8);
+    int startIdx = std::max(0, capturedSignalCount - 8);
     for (int i = startIdx; i < capturedSignalCount && y < 220; i++) {
         M5.Lcd.setCursor(10, y);
         M5.Lcd.printf("%d. %s", i + 1, capturedSignals[i].description);
@@ -446,7 +447,7 @@ void displayWiFiScanner() {
     M5.Lcd.printf("Networks found: %d", networkCount);
     
     int y = 60;
-    for (int i = 0; i < min(networkCount, 10) && y < 220; i++) {
+    for (int i = 0; i < std::min(networkCount, 10) && y < 220; i++) {
         WiFiNetworkInfo network = rf24.getWiFiNetwork(i);
         M5.Lcd.setCursor(10, y);
         M5.Lcd.printf("%s (%ddBm)", network.ssid, network.rssi);
@@ -474,7 +475,7 @@ void displayBLEScanner() {
     M5.Lcd.printf("Devices found: %d", deviceCount);
     
     int y = 60;
-    for (int i = 0; i < min(deviceCount, 10) && y < 220; i++) {
+    for (int i = 0; i < std::min(deviceCount, 10) && y < 220; i++) {
         BLEDeviceInfo device = rf24.getBLEDevice(i);
         M5.Lcd.setCursor(10, y);
         M5.Lcd.printf("%s (%ddBm)", device.name, device.rssi);

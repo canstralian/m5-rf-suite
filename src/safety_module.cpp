@@ -5,6 +5,7 @@
 
 #include "safety_module.h"
 #include <vector>
+#include <cmath>
 
 SafetyModule Safety; // Global instance
 
@@ -72,7 +73,7 @@ TransmitPermission SafetyModule::checkTransmitPolicy(const TransmitRequest& requ
 
 bool SafetyModule::isFrequencyAllowed(float frequency) {
     for (float blacklisted : blacklistedFrequencies) {
-        if (abs(frequency - blacklisted) < 0.1) { // Within 100 kHz
+        if (fabs(frequency - blacklisted) < 0.1) { // Within 100 kHz
             return false;
         }
     }
@@ -200,7 +201,7 @@ bool SafetyModule::addFrequencyToBlacklist(float frequency) {
 
 bool SafetyModule::removeFrequencyFromBlacklist(float frequency) {
     for (auto it = blacklistedFrequencies.begin(); it != blacklistedFrequencies.end(); ++it) {
-        if (abs(*it - frequency) < 0.1) {
+        if (fabs(*it - frequency) < 0.1) {
             blacklistedFrequencies.erase(it);
             return true;
         }

@@ -4,6 +4,7 @@
  */
 
 #include "rf24_module.h"
+#include <algorithm>
 
 // Static callback data
 static RF24Module* g_instance = nullptr;
@@ -172,7 +173,7 @@ void RF24Module::onESPNowDataReceived(const uint8_t* mac, const uint8_t* data, i
     ESPNowMessage msg;
     memcpy(msg.senderId, mac, 6);
     msg.timestamp = millis();
-    msg.dataLen = min((size_t)len, sizeof(msg.data));
+    msg.dataLen = std::min((size_t)len, sizeof(msg.data));
     memcpy(msg.data, data, msg.dataLen);
     
     if (len > 0) {

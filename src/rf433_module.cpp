@@ -152,14 +152,7 @@ bool RF433Module::canTransmit(const RF433Signal& signal) {
         return false;
     }
     
-    TransmitRequest request;
-    request.frequency = 433.92; // MHz
-    request.duration = signal.pulseLength * signal.bitLength * RF_433_REPEAT_TRANSMIT / 1000;
-    request.timestamp = millis();
-    request.confirmed = false;
-    snprintf(request.reason, sizeof(request.reason), "RF433 signal replay");
-    
-    return checkTransmitPolicy(request);
+    return checkTransmitPolicy(signal);
 }
 
 bool RF433Module::transmitSignal(const RF433Signal& signal, bool requireConfirmation) {

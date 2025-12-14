@@ -238,7 +238,7 @@ struct DeterministicLogEntry {
     
     DeterministicLogEntry() : 
         sequenceNumber(0), timestampMs(0), timestampUs(0),
-        eventType(DET_EVENT_TRANSITION),
+        eventType(DET_EVENT_STATE_ENTRY),  // Default to STATE_ENTRY as most neutral
         state(WF_IDLE), prevState(WF_IDLE) {
         memset(event, 0, sizeof(event));
         memset(reason, 0, sizeof(reason));

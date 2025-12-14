@@ -179,10 +179,10 @@ void RFTestWorkflow::selectSignalForTransmission(int index) {
     if (currentState == WF_READY && index >= 0 && index < (int)captureBuffer.size()) {
         selectedSignalIndex = index;
         Serial.printf("[Workflow] Signal %d selected for transmission\n", index);
-        char data[64];
-        snprintf(data, sizeof(data), "signal_index=%d", index);
+        char signalData[64];
+        snprintf(signalData, sizeof(signalData), "signal_index=%d", index);
         logDeterministicEvent(DET_EVENT_USER_ACTION, "SELECT_SIGNAL", 
-                             "User selected signal for transmission", data);
+                             "User selected signal for transmission", signalData);
         transitionToState(WF_TX_GATED, "User requested transmission");
     }
 }
@@ -1013,11 +1013,11 @@ void RFTestWorkflow::logTransition(WorkflowState fromState, WorkflowState toStat
     transitionLog.push_back(log);
     
     // Log to deterministic log
-    char event[32];
-    snprintf(event, sizeof(event), "TRANSITION");
-    char data[64];
-    snprintf(data, sizeof(data), "from=%s to=%s", getStateName(fromState), getStateName(toState));
-    logDeterministicEvent(DET_EVENT_TRANSITION, event, reason, data);
+    char eventStr[32];
+    snprintf(eventStr, sizeof(eventStr), "TRANSITION");
+    char transitionData[64];
+    snprintf(transitionData, sizeof(transitionData), "from=%s to=%s", getStateName(fromState), getStateName(toState));
+    logDeterministicEvent(DET_EVENT_TRANSITION, eventStr, reason, transitionData);
 }
 
 uint32_t RFTestWorkflow::getTimeoutForState(WorkflowState state) const {
@@ -1037,10 +1037,10 @@ void RFTestWorkflow::handleTimeout() {
     logError(WF_ERROR_TIMEOUT, "State timeout");
     
     // Log timeout event
-    char data[64];
-    snprintf(data, sizeof(data), "state=%s elapsed=%lu", 
+    char timeoutData[64];
+    snprintf(timeoutData, sizeof(timeoutData), "state=%s elapsed=%lu", 
              getStateName(currentState), millis() - stateEntryTime);
-    logDeterministicEvent(DET_EVENT_TIMEOUT, "TIMEOUT", "State timeout exceeded", data);
+    logDeterministicEvent(DET_EVENT_TIMEOUT, "TIMEOUT", "State timeout exceeded", timeoutData);
     
     switch (currentState) {
         case WF_INIT:

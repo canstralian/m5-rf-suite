@@ -84,6 +84,25 @@ const float FREQ_BLACKLIST[] = {
 #define COLOR_SUCCESS 0x07E0       // Green
 
 // ============================================================================
+// DEBUG AND ASSERTIONS CONFIGURATION
+// ============================================================================
+// Enable debug assertions (safety invariant checks)
+// Set to 0 to disable, 1 for critical only, 2 for standard, 3 for verbose
+#ifndef DEBUG_ASSERTIONS
+    #ifdef DEBUG
+        #define DEBUG_ASSERTIONS 2  // Standard level in debug builds
+    #else
+        #define DEBUG_ASSERTIONS 0  // Disabled in release builds
+    #endif
+#endif
+
+// Assertion levels
+#define ASSERT_LEVEL_NONE 0
+#define ASSERT_LEVEL_CRITICAL 1   // Safety-critical only (always in debug)
+#define ASSERT_LEVEL_STANDARD 2   // Standard checks (default debug)
+#define ASSERT_LEVEL_VERBOSE 3    // Verbose/performance-impacting checks
+
+// ============================================================================
 // LOGGING CONFIGURATION
 // ============================================================================
 #define ENABLE_SERIAL_LOGGING true

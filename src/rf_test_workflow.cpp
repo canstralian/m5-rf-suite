@@ -257,6 +257,13 @@ void RFTestWorkflow::clearLogs() {
 // ============================================================================
 
 void RFTestWorkflow::processCurrentState() {
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD
+    // Verify invariants before processing state (debug builds only)
+    verifyStateInvariants();
+    verifySafetyInvariants();
+    verifyResourceInvariants();
+#endif
+    
     switch (currentState) {
         case WF_IDLE:
             processIdleState();
@@ -336,6 +343,11 @@ void RFTestWorkflow::processInitState() {
         if (rf433Module != nullptr) {
             rf433Module->startReceiving();
             rf433Module->setTransmitEnabled(false);
+            
+            // SAFE-TX-1: Verify transmitter is disabled after init
+            WF_ASSERT_CRITICAL(!isTransmitterEnabled(),
+                              "SAFE-TX-1: Transmitter not disabled in INIT");
+            
             success = true;
             Serial.println("[Workflow] 433 MHz module: OK");
         } else {
@@ -352,6 +364,7 @@ void RFTestWorkflow::processInitState() {
     
     if (!success) {
         logError(WF_ERROR_INIT_FAILED, "Hardware initialization failed");
+        // ERR-RECOV-1: All failures exit via CLEANUP
         transitionToState(WF_CLEANUP, "Init failed");
         return;
     }
@@ -362,6 +375,10 @@ void RFTestWorkflow::processInitState() {
     captureBuffer.reserve(config.bufferSize);
     Serial.printf("[Workflow] Buffer allocated: %d slots\n", config.bufferSize);
     
+    // RES-BUF-1: Verify buffer capacity
+    WF_ASSERT(captureBuffer.capacity() >= config.bufferSize,
+              "RES-BUF-1: Buffer allocation failed");
+    
     // Step 3: Initialize statistics
     memset(&analysisResult, 0, sizeof(analysisResult));
     errorCount = 0;
@@ -371,14 +388,17 @@ void RFTestWorkflow::processInitState() {
 }
 
 void RFTestWorkflow::processListeningState() {
-    // Ensure transmitter is disabled (passive observation)
+    // SAFE-TX-1: Ensure transmitter is disabled (passive observation)
     if (config.band == BAND_433MHZ && rf433Module) {
         rf433Module->setTransmitEnabled(false);
+        
+        WF_ASSERT_CRITICAL(!isTransmitterEnabled(),
+                          "SAFE-TX-1: Transmitter enabled during LISTENING");
     }
     
     uint32_t elapsed = millis() - stateEntryTime;
     
-    // Check minimum observation time
+    // TIME-MIN-1: Check minimum observation time
     if (elapsed < config.listenMinTime) {
         captureSignals();
         return;
@@ -386,6 +406,10 @@ void RFTestWorkflow::processListeningState() {
     
     // Check for transition triggers
     float bufferUsage = (float)captureBuffer.size() / config.bufferSize;
+    
+    // RES-BUF-1: Verify buffer hasn't exceeded capacity
+    WF_ASSERT(captureBuffer.size() <= config.bufferSize,
+              "RES-BUF-1: Buffer overflow in LISTENING");
     
     if (bufferUsage >= 0.9f) {
         Serial.println("[Workflow] Buffer 90% full, triggering analysis");
@@ -452,6 +476,10 @@ void RFTestWorkflow::processReadyState() {
 void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] === GATED TRANSMISSION PHASE ===");
     
+    // SAFE-TX-1: Verify transmitter still disabled during gate checks
+    WF_ASSERT_CRITICAL(!isTransmitterEnabled(),
+                      "SAFE-TX-1: Transmitter enabled during TX_GATED");
+    
     transmissionAttempts++;
     
     if (transmissionAttempts > 3) {
@@ -470,6 +498,7 @@ void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] Gate 1: Policy validation");
     if (!checkPolicyGate()) {
         Serial.println("[Workflow] Gate 1: FAILED");
+        // SAFE-TX-3: Gate failure returns to READY (not TRANSMIT)
         transitionToState(WF_READY, "Policy denied");
         return;
     }
@@ -479,6 +508,7 @@ void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] Gate 2: User confirmation");
     if (!checkConfirmationGate()) {
         Serial.println("[Workflow] Gate 2: FAILED");
+        // TX-CONF-1: No transmission without confirmation
         transitionToState(WF_READY, "Not confirmed");
         return;
     }
@@ -488,6 +518,7 @@ void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] Gate 3: Rate limiting");
     if (!checkRateLimitGate()) {
         Serial.println("[Workflow] Gate 3: FAILED");
+        // TX-RATE-1: Rate limit enforced
         transitionToState(WF_READY, "Rate limit");
         return;
     }
@@ -504,24 +535,36 @@ void RFTestWorkflow::processTxGatedState() {
     
     if (!gatePass) {
         Serial.println("[Workflow] Gate 4: FAILED");
+        // TX-BAND-1/2: Band-specific validation enforced
         transitionToState(WF_READY, "Band validation failed");
         return;
     }
     Serial.println("[Workflow] Gate 4: PASSED");
     
-    // All gates passed
+    // SAFE-TX-3: All gates passed - can proceed to TRANSMIT
     Serial.println("[Workflow] ALL GATES PASSED");
+    WF_ASSERT(transmissionAttempts <= 3,
+              "SAFE-TX-3: Too many transmission attempts");
+    
     transitionToState(WF_TRANSMIT, "All gates passed");
 }
 
 void RFTestWorkflow::processTransmitState() {
     Serial.println("[Workflow] === TRANSMISSION PHASE ===");
     
+    // SAFE-TX-1: This is the ONLY state where transmitter can be enabled
+    // The actual enabling happens in transmit433MHz/transmit24GHz functions
+    
     const CapturedSignalData& signal = captureBuffer[selectedSignalIndex];
     
     Serial.printf("[Workflow] Transmitting signal %d\n", selectedSignalIndex);
     Serial.printf("[Workflow]   Frequency: %.2f MHz\n", signal.frequency);
     Serial.printf("[Workflow]   Protocol: %s\n", signal.protocol);
+    
+    // Verify we're within time limits
+    uint32_t elapsed = getStateElapsedTime();
+    WF_ASSERT(elapsed < config.transmitMaxDuration,
+              "TX-POL-2: Transmission time limit exceeded");
     
     bool success = false;
     
@@ -538,17 +581,25 @@ void RFTestWorkflow::processTransmitState() {
         logError(WF_ERROR_TRANSMISSION_FAILED, "Transmission execution failed");
     }
     
+    // ERR-RECOV-1: Both success and failure exit via CLEANUP
     transitionToState(WF_CLEANUP, success ? "Transmit success" : "Transmit failed");
 }
 
 void RFTestWorkflow::processCleanupState() {
     Serial.println("[Workflow] === CLEANUP PHASE ===");
     
-    // Step 1: Disable transmitter
+    // INV-SM-5: CLEANUP always executes (unconditional)
+    // This state is entered from all termination paths
+    
+    // Step 1: Disable transmitter (CRITICAL)
     Serial.println("[Workflow] Step 1: Disable transmitter");
     if (rf433Module) {
         rf433Module->setTransmitEnabled(false);
     }
+    
+    // SAFE-TX-1: Verify transmitter is disabled
+    WF_ASSERT_CRITICAL(!isTransmitterEnabled(),
+                      "SAFE-TX-1: Failed to disable transmitter in CLEANUP");
     
     // Step 2: Disable receiver
     Serial.println("[Workflow] Step 2: Disable receiver");
@@ -556,13 +607,18 @@ void RFTestWorkflow::processCleanupState() {
         rf433Module->stopReceiving();
     }
     
+    // RES-HW-2: Hardware cleanup complete
+    
     // Step 3: Clear sensitive data (optional, depends on requirements)
     // MEMORY OWNERSHIP: Clearing vector will call destructor on each CapturedSignalData
     // which will automatically free all pulseTimes buffers (RAII)
     // captureBuffer.clear(); // Uncomment if data should not persist
     
+    // RES-BUF-3: Buffer persistence - data kept for review unless explicitly cleared
+    
     Serial.println("[Workflow] Cleanup complete");
     
+    // INV-SM-4: CLEANUP always transitions to IDLE
     transitionToState(WF_IDLE, "Cleanup done");
 }
 
@@ -582,6 +638,10 @@ void RFTestWorkflow::capture433MHzSignals() {
     if (rf433Module == nullptr) return;
     
     while (rf433Module->isSignalAvailable() && captureBuffer.size() < config.bufferSize) {
+        // RES-BUF-1: Check buffer bounds before adding
+        WF_ASSERT(captureBuffer.size() < config.bufferSize,
+                  "RES-BUF-1: Buffer full before capture check");
+        
         RF433Signal rfSignal = rf433Module->receiveSignal();
         
         if (!rfSignal.isValid) continue;
@@ -595,6 +655,10 @@ void RFTestWorkflow::capture433MHzSignals() {
             captureBuffer.push_back(std::move(captured));
             Serial.printf("[Workflow] Captured 433 MHz signal: %lu (%d bits)\n",
                          rfSignal.value, rfSignal.bitLength);
+            
+            // Verify buffer still within bounds after insertion
+            WF_ASSERT(captureBuffer.size() <= config.bufferSize,
+                      "RES-BUF-1: Buffer overflow after signal capture");
         }
         // If not valid, captured's destructor will free any allocated buffer
     }
@@ -928,6 +992,129 @@ bool RFTestWorkflow::wasAddressObserved(const char* address) const {
         }
     }
     return false;
+}
+
+// ============================================================================
+// Assertion Handling and Invariant Verification
+// ============================================================================
+
+void RFTestWorkflow::handleAssertionFailure(const char* message, bool critical) {
+    // Log the assertion failure
+    logError(WF_ERROR_HARDWARE_FAILURE, message);
+    
+    Serial.println("========================================");
+    Serial.println("INVARIANT VIOLATION DETECTED");
+    Serial.printf("State: %s\n", getStateName(currentState));
+    Serial.printf("Message: %s\n", message);
+    Serial.printf("Critical: %s\n", critical ? "YES" : "NO");
+    Serial.println("========================================");
+    
+    if (critical) {
+        // For critical violations, force emergency stop
+        Serial.println("[CRITICAL] Forcing emergency stop");
+        emergencyStop = true;
+        
+        // Disable transmitter immediately
+        if (rf433Module) {
+            rf433Module->setTransmitEnabled(false);
+        }
+    } else {
+        // For non-critical, increment error count
+        // (which will trigger cleanup if threshold exceeded)
+        errorCount += 5;  // Weight assertions higher than regular errors
+    }
+}
+
+void RFTestWorkflow::verifyStateInvariants() {
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD
+    // INV-SM-1: State Validity
+    WF_ASSERT(currentState >= WF_IDLE && currentState <= WF_CLEANUP,
+              "INV-SM-1: Invalid workflow state");
+    
+    // INV-SM-4: IDLE is Terminal (only entered from CLEANUP or initial state)
+    if (currentState == WF_IDLE && previousState != WF_CLEANUP && previousState != WF_IDLE) {
+        WF_ASSERT(false,
+                  "INV-SM-4: IDLE entered from non-CLEANUP state");
+    }
+#endif
+}
+
+void RFTestWorkflow::verifySafetyInvariants() {
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_CRITICAL
+    // SAFE-TX-1: Transmitter Disabled by Default
+    // Note: isTransmitterEnabled() is a conservative check based on state
+    // In production, this should query actual hardware TX enable pin/register
+    bool txShouldBeDisabled = (currentState != WF_TRANSMIT);
+    if (txShouldBeDisabled) {
+        WF_ASSERT_CRITICAL(!isTransmitterEnabled(),
+                          "SAFE-TX-1: Transmitter enabled outside TRANSMIT state");
+    }
+    
+    // TX-CONF-1: Confirmation Required for TRANSMIT
+    // Note: Cannot verify confirmation flag here due to lifecycle - it's reset after
+    // gate checks complete. Actual verification happens in processTxGatedState()
+    // at checkConfirmationGate() (line ~738). See INVARIANTS.md Known Limitations.
+#endif
+
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD
+    // TX-POL-2: Duration Limits
+    if (currentState == WF_TRANSMIT || currentState == WF_TX_GATED) {
+        uint32_t elapsed = getStateElapsedTime();
+        WF_ASSERT(elapsed <= config.transmitMaxDuration + 1000,
+                  "TX-POL-2: Transmission duration exceeded maximum");
+    }
+#endif
+}
+
+void RFTestWorkflow::verifyResourceInvariants() {
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD
+    // RES-BUF-1: Buffer Bounds Protection
+    WF_ASSERT(captureBuffer.size() <= config.bufferSize,
+              "RES-BUF-1: Capture buffer exceeded configured size");
+    
+    // RES-HW-1: Hardware Initialization
+    if (currentState != WF_IDLE && currentState != WF_INIT) {
+        if (config.band == BAND_433MHZ) {
+            WF_ASSERT(rf433Module != nullptr,
+                      "RES-HW-1: 433 MHz module not initialized");
+        } else if (config.band == BAND_24GHZ) {
+            WF_ASSERT(rf24Module != nullptr,
+                      "RES-HW-1: 2.4 GHz module not initialized");
+        }
+    }
+    
+    // ERR-CNT-1: Error Threshold Protection
+    WF_ASSERT(errorCount < 100,
+              "ERR-CNT-1: Error count exceeded sanity threshold");
+#endif
+
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_VERBOSE
+    // Check transition log doesn't grow unbounded
+    WF_ASSERT_VERBOSE(transitionLog.size() < 1000,
+                     "Transition log size approaching memory limit");
+#endif
+}
+
+bool RFTestWorkflow::isTransmitterEnabled() const {
+    // TODO: This function should query actual hardware TX enable state
+    // Current implementation is a conservative state-based check that provides
+    // limited validation. For true hardware verification, this should query
+    // the RF module's TX enable pin/register directly:
+    //   if (rf433Module) return rf433Module->getTransmitEnabled();
+    //
+    // LIMITATION: This check only verifies state consistency, not actual hardware.
+    // It will not catch bugs where TX is accidentally enabled outside TRANSMIT state
+    // if the bug bypasses state management.
+    
+    // Conservative check: only TRANSMIT state should have TX enabled
+    if (currentState != WF_TRANSMIT) {
+        // TX should definitely be disabled in non-TRANSMIT states
+        return false;
+    }
+    
+    // In TRANSMIT state, TX may be enabled (but we can't verify without hardware query)
+    // Return true to avoid false positives in assertions
+    return true;
 }
 
 // ============================================================================

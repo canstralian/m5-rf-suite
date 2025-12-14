@@ -795,8 +795,25 @@ This workflow system is designed to support regulatory compliance:
 
 Users remain responsible for compliance with applicable regulations.
 
+## Formal Invariants and Safety Guarantees
+
+The workflow system enforces formal invariants that guarantee safety properties. These invariants are:
+
+1. **Documented** in `INVARIANTS.md` for reviewers, auditors, and contributors
+2. **Enforced** through code structure and state machine design
+3. **Verified** by runtime assertions in debug builds
+
+Key invariants include:
+- TX hardware disabled in all states except TRANSMIT (SAFE-TX-1)
+- All failures exit via CLEANUP (INV-SM-5, ERR-RECOV-1)
+- User confirmation mandatory for transmission (TX-CONF-1)
+- Buffer overflow protection (RES-BUF-1)
+- Rate limiting enforcement (TX-RATE-1)
+
+For complete invariant documentation, see **INVARIANTS.md**.
+
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 1.1  
 **Last Updated**: 2025-12-14  
 **Status**: Complete

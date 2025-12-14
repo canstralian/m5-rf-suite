@@ -24,12 +24,7 @@ bool RF433Module::begin(int rxPin, int txPin) {
     this->txPin = txPin;
     
     // Enable receiver
-    // On ESP32, the GPIO pin number itself is the interrupt number
-#ifdef ESP32
-    rcSwitch.enableReceive(rxPin);
-#else
-    rcSwitch.enableReceive(digitalPinToInterrupt(rxPin));
-#endif
+    enableReceiveForPin(rxPin);
     
     // Set up transmitter
     rcSwitch.enableTransmit(txPin);
@@ -89,12 +84,7 @@ RF433Signal RF433Module::receiveSignal() {
 }
 
 void RF433Module::startReceiving() {
-    // On ESP32, the GPIO pin number itself is the interrupt number
-#ifdef ESP32
-    rcSwitch.enableReceive(rxPin);
-#else
-    rcSwitch.enableReceive(digitalPinToInterrupt(rxPin));
-#endif
+    enableReceiveForPin(rxPin);
 #if ENABLE_SERIAL_LOGGING
     Serial.println("[RF433] Receiving started");
 #endif
@@ -271,6 +261,16 @@ void RF433Module::setPulseLength(int length) {
 
 void RF433Module::setRepeatTransmit(int repeat) {
     rcSwitch.setRepeatTransmit(repeat);
+}
+
+void RF433Module::enableReceiveForPin(int pin) {
+    // On ESP32, the GPIO pin number itself is the interrupt number
+    // On other platforms (like AVR), we need to use digitalPinToInterrupt()
+#ifdef ESP32
+    rcSwitch.enableReceive(pin);
+#else
+    rcSwitch.enableReceive(digitalPinToInterrupt(pin));
+#endif
 }
 
 unsigned long RF433Module::calculateTransmissionDuration(const RF433Signal& signal) {

@@ -102,6 +102,8 @@ void RFTestWorkflow::reset() {
     previousState = WF_IDLE;
     running = false;
     emergencyStop = false;
+    // MEMORY OWNERSHIP: Clearing captureBuffer destroys all CapturedSignalData objects
+    // Each object's destructor will automatically free its pulseTimes buffer (RAII)
     captureBuffer.clear();
     errorLog.clear();
     errorCount = 0;
@@ -155,6 +157,10 @@ int RFTestWorkflow::getCapturedSignalCount() const {
 
 const CapturedSignalData* RFTestWorkflow::getCapturedSignal(int index) const {
     if (index >= 0 && index < (int)captureBuffer.size()) {
+        // MEMORY OWNERSHIP: Returns pointer to object owned by captureBuffer
+        // Returned pointer is valid only while captureBuffer exists and is not modified
+        // Caller MUST NOT delete the returned pointer
+        // Caller should not hold pointer across operations that might modify captureBuffer
         return &captureBuffer[index];
     }
     return nullptr;
@@ -551,6 +557,8 @@ void RFTestWorkflow::processCleanupState() {
     }
     
     // Step 3: Clear sensitive data (optional, depends on requirements)
+    // MEMORY OWNERSHIP: Clearing vector will call destructor on each CapturedSignalData
+    // which will automatically free all pulseTimes buffers (RAII)
     // captureBuffer.clear(); // Uncomment if data should not persist
     
     Serial.println("[Workflow] Cleanup complete");
@@ -582,10 +590,13 @@ void RFTestWorkflow::capture433MHzSignals() {
         convertRF433Signal(rfSignal, captured);
         
         if (validateSignal433MHz(captured)) {
-            captureBuffer.push_back(captured);
+            // MEMORY OWNERSHIP: Move captured signal into vector for efficient transfer
+            // After this move, 'captured' will have nullptr pulseTimes (ownership transferred)
+            captureBuffer.push_back(std::move(captured));
             Serial.printf("[Workflow] Captured 433 MHz signal: %lu (%d bits)\n",
                          rfSignal.value, rfSignal.bitLength);
         }
+        // If not valid, captured's destructor will free any allocated buffer
     }
 }
 
@@ -649,7 +660,9 @@ void RFTestWorkflow::analyze24GHzPackets() {
 void RFTestWorkflow::classifyDevice433MHz(CapturedSignalData& signal) {
     // Simple classification based on pulse characteristics
     float avgPulse = 0;
-    if (signal.pulseCount > 0 && signal.pulseTimes != nullptr) {
+    // MEMORY SAFETY: Check buffer validity before accessing
+    // signal owns the pulseTimes buffer, guaranteed valid during this function
+    if (signal.hasPulseBuffer()) {
         for (uint16_t i = 0; i < signal.pulseCount; i++) {
             avgPulse += signal.pulseTimes[i];
         }
@@ -765,8 +778,9 @@ bool RFTestWorkflow::checkRateLimitGate() {
 bool RFTestWorkflow::check433MHzGate() {
     const CapturedSignalData& signal = captureBuffer[selectedSignalIndex];
     
-    // Verify pulse timing is within acceptable range
-    if (signal.pulseTimes != nullptr) {
+    // MEMORY SAFETY: Verify pulse timing is within acceptable range
+    // Use hasPulseBuffer() to safely check buffer validity
+    if (signal.hasPulseBuffer()) {
         for (uint16_t i = 0; i < signal.pulseCount; i++) {
             if (signal.pulseTimes[i] < 100 || signal.pulseTimes[i] > 10000) {
                 Serial.printf("[Workflow] Pulse %d out of range: %d us\n", i, signal.pulseTimes[i]);
@@ -896,7 +910,8 @@ bool RFTestWorkflow::isFrequencyBlacklisted(float frequency) const {
 uint32_t RFTestWorkflow::estimateTransmissionDuration(const CapturedSignalData& signal) const {
     if (config.band == BAND_433MHZ) {
         uint32_t totalPulse = 0;
-        if (signal.pulseTimes != nullptr) {
+        // MEMORY SAFETY: Use hasPulseBuffer() to safely check buffer validity
+        if (signal.hasPulseBuffer()) {
             for (uint16_t i = 0; i < signal.pulseCount; i++) {
                 totalPulse += signal.pulseTimes[i];
             }
@@ -919,6 +934,15 @@ bool RFTestWorkflow::wasAddressObserved(const char* address) const {
 // Helper Functions (Global)
 // ============================================================================
 
+/**
+ * @brief Convert RF433Signal to CapturedSignalData with proper memory management
+ * 
+ * MEMORY OWNERSHIP: Allocates new pulseTimes buffer owned by dst
+ * Caller responsibility: Ensure dst object's lifetime manages the buffer
+ * 
+ * @param src Source RF433 signal (read-only)
+ * @param dst Destination captured signal (takes ownership of allocated buffer)
+ */
 void convertRF433Signal(const RF433Signal& src, CapturedSignalData& dst) {
     dst.captureTime = src.timestamp * 1000;  // Convert to microseconds
     dst.frequency = 433.92f;
@@ -931,18 +955,18 @@ void convertRF433Signal(const RF433Signal& src, CapturedSignalData& dst) {
     dst.rawData[3] = src.value & 0xFF;
     dst.dataLength = 4;
     
-    // Copy pulse times (simplified - would need actual pulse data)
-    dst.pulseCount = src.bitLength;
-    if (dst.pulseCount > 0) {
-        try {
-            dst.pulseTimes = new uint16_t[dst.pulseCount];
+    // MEMORY OWNERSHIP: Allocate pulse timing buffer
+    // dst takes ownership of the allocated buffer via allocatePulseBuffer()
+    // Buffer will be automatically freed when dst is destroyed (RAII)
+    if (src.bitLength > 0) {
+        if (dst.allocatePulseBuffer(src.bitLength)) {
+            // Fill buffer with pulse timing data
             for (uint16_t i = 0; i < dst.pulseCount; i++) {
                 dst.pulseTimes[i] = src.pulseLength;
             }
-        } catch (...) {
-            // If allocation fails, set to nullptr and count to 0
-            dst.pulseTimes = nullptr;
-            dst.pulseCount = 0;
+        } else {
+            // Allocation failed: dst.pulseCount is already 0, pulseTimes is nullptr
+            Serial.println("[Workflow] WARNING: Failed to allocate pulse buffer");
         }
     }
     
@@ -952,15 +976,28 @@ void convertRF433Signal(const RF433Signal& src, CapturedSignalData& dst) {
     dst.isValid = src.isValid;
 }
 
+/**
+ * @brief Convert CapturedSignalData back to RF433Signal (lossy conversion)
+ * 
+ * MEMORY SAFETY: Reads from src.pulseTimes but does not take ownership
+ * dst is a simple struct with no dynamic allocation
+ * 
+ * @param src Source captured signal (read-only, retains ownership of buffers)
+ * @param dst Destination RF433 signal (fixed-size, no dynamic allocation)
+ */
 void convertToCapturedSignal(const CapturedSignalData& src, RF433Signal& dst) {
     dst.value = (src.rawData[0] << 24) | (src.rawData[1] << 16) | 
                 (src.rawData[2] << 8) | src.rawData[3];
     dst.bitLength = src.pulseCount;
     dst.protocol = 1;  // Default protocol
-    dst.pulseLength = (src.pulseTimes && src.pulseCount > 0) ? src.pulseTimes[0] : 350;
+    // MEMORY SAFETY: Use hasPulseBuffer() to safely access pulse data
+    dst.pulseLength = src.hasPulseBuffer() ? src.pulseTimes[0] : 350;
     dst.timestamp = src.captureTime / 1000;
     dst.rssi = src.rssi;
     strncpy(dst.description, src.deviceType, sizeof(dst.description) - 1);
+    // Defensive: Explicitly null-terminate even though strncpy should handle it
+    // Protects against non-null-terminated source strings
+    dst.description[sizeof(dst.description) - 1] = '\0';
     dst.isValid = src.isValid;
 }
 

@@ -30,6 +30,17 @@ enum SignalType {
     SIGNAL_OTHER = 99
 };
 
+/**
+ * @brief 433 MHz RF signal data (fixed-size, no dynamic allocation)
+ * 
+ * MEMORY OWNERSHIP: Self-contained, no heap allocations
+ * Copy/move semantics: Default (shallow copy sufficient)
+ * Safe to pass by value and return from functions
+ * 
+ * NOTE: This is a simplified representation. Actual pulse timing data
+ * is not stored here but can be captured separately in CapturedSignalData
+ * for more detailed analysis.
+ */
 struct RF433Signal {
     unsigned long value;        // Decoded value
     unsigned int bitLength;     // Number of bits

@@ -25,6 +25,13 @@
 // WIFI STRUCTURES
 // ============================================================================
 
+/**
+ * @brief Wi-Fi network information (fixed-size, no dynamic allocation)
+ * 
+ * MEMORY OWNERSHIP: Self-contained, no heap allocations
+ * Copy/move semantics: Default (shallow copy sufficient)
+ * Safe to store in std::vector and pass by value
+ */
 struct WiFiNetworkInfo {
     char ssid[33];
     uint8_t bssid[6];
@@ -38,6 +45,13 @@ struct WiFiNetworkInfo {
 // ESP-NOW STRUCTURES
 // ============================================================================
 
+/**
+ * @brief ESP-NOW received message (fixed-size, no dynamic allocation)
+ * 
+ * MEMORY OWNERSHIP: Self-contained, no heap allocations
+ * Copy/move semantics: Default (shallow copy sufficient)
+ * Safe to store in std::vector and pass by value
+ */
 struct ESPNowMessage {
     uint8_t senderId[6];
     uint8_t messageType;
@@ -50,6 +64,13 @@ struct ESPNowMessage {
 // BLE STRUCTURES
 // ============================================================================
 
+/**
+ * @brief BLE device information (fixed-size, no dynamic allocation)
+ * 
+ * MEMORY OWNERSHIP: Self-contained, no heap allocations
+ * Copy/move semantics: Default (shallow copy sufficient)
+ * Safe to store in std::vector and pass by value
+ */
 struct BLEDeviceInfo {
     char name[64];
     char address[18];
@@ -116,16 +137,22 @@ public:
 private:
     // ESP-NOW state
     bool espNowInitialized;
+    // MEMORY OWNERSHIP: Vector owns all ESPNowMessage objects
+    // Messages contain fixed-size data array (no dynamic allocation)
     std::vector<ESPNowMessage> receivedMessages;
     int peerCount;
     
     // Wi-Fi state
     bool wifiScanInProgress;
+    // MEMORY OWNERSHIP: Vector owns all WiFiNetworkInfo objects
+    // Network info contains fixed-size data (no dynamic allocation)
     std::vector<WiFiNetworkInfo> wifiNetworks;
     
     // BLE state
     bool bleInitialized;
-    BLEScan* pBLEScan;
+    BLEScan* pBLEScan;  // Managed by BLEDevice library (not owned by us)
+    // MEMORY OWNERSHIP: Vector owns all BLEDeviceInfo objects
+    // Device info contains fixed-size data (no dynamic allocation)
     std::vector<BLEDeviceInfo> bleDevices;
     
     // Callbacks

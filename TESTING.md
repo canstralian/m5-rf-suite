@@ -424,12 +424,74 @@ _________________________________
 _________________________________
 ```
 
+## Automated Testing with Dry-Run Mode
+
+The RF Suite now includes a **Dry-Run Mode** that enables testing without RF emission:
+
+### Test 13: Dry-Run Workflow Test
+
+**Objective**: Verify workflow executes correctly in simulation mode
+
+**Steps**:
+1. Enable dry-run mode in config or workflow
+2. Run complete workflow test
+3. Verify all states execute
+4. Check gate validations occur
+5. Confirm no RF emission
+6. Review simulation logs
+
+**Expected Results**:
+- Workflow executes all states (INIT → LISTENING → ANALYZING → READY → TX_GATED → TRANSMIT → CLEANUP)
+- All gates are checked (Policy, Confirmation, Rate Limit, Band-Specific)
+- Logs show "DRY-RUN" markers throughout
+- No actual RF transmission occurs
+- Simulated transmission reports success
+- State transitions work correctly
+
+**Pass Criteria**:
+- ✅ Dry-run mode indicators present in logs
+- ✅ No RF hardware accessed for transmission
+- ✅ All gates execute and validate
+- ✅ Workflow completes successfully
+- ✅ Logging shows simulated transmission details
+
+**Example Code**:
+```cpp
+WorkflowConfig config;
+config.band = BAND_433MHZ;
+config.dryRunMode = true;  // Enable simulation
+
+RFTestWorkflow workflow;
+workflow.initialize(config, &rf433, &rf24);
+workflow.start();
+```
+
+See `examples/dry_run_test/` for a complete working example.
+
+### CI/CD Integration
+
+Dry-run mode enables automated testing without hardware:
+
+```bash
+# In your CI pipeline
+pio run -e m5stack-core2 --target upload
+# Run dry-run tests
+# Verify serial output shows "DRY-RUN" markers
+```
+
+Benefits:
+- Test workflow logic on every commit
+- No RF equipment required in CI environment
+- Fast execution (no hardware delays)
+- Safe for repeated testing
+- Validates gate checks and state transitions
+
 ## Automated Testing (Future)
 
 Consider implementing:
 - Unit tests for signal processing
-- Mock RF inputs for CI/CD
-- Automated regression suite
+- Dry-run mode for CI/CD (now available!)
+- Automated regression suite using dry-run
 - Memory leak detection
 - Fuzzing for input validation
 

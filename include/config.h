@@ -58,6 +58,7 @@
 #define REQUIRE_USER_CONFIRMATION true  // Require button press before transmit
 #define TRANSMIT_TIMEOUT 10000         // ms before auto-canceling transmit mode
 #define MAX_TRANSMIT_DURATION 5000     // ms maximum single transmission duration
+#define DRY_RUN_MODE false             // Simulate transmissions without RF emission
 
 // Blacklist/whitelist for frequencies (in MHz)
 #define FREQ_BLACKLIST_ENABLED false

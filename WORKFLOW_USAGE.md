@@ -558,11 +558,159 @@ Users are responsible for:
 - Check for hardware issues
 - Verify sufficient processing power
 
+## Dry-Run / Simulation Mode
+
+The workflow system includes a special dry-run mode that allows you to test the complete TX_GATED → TRANSMIT workflow without actually emitting RF signals.
+
+### What is Dry-Run Mode?
+
+Dry-run mode executes the entire workflow including all safety gates and state transitions, but simulates the actual RF transmission. This provides:
+
+- **Safe Testing**: No RF emissions during development or debugging
+- **CI/CD Integration**: Run automated tests without hardware setup
+- **Demonstrations**: Show workflow behavior safely in presentations
+- **Development**: Test workflow logic without RF equipment
+
+### Enabling Dry-Run Mode
+
+Enable dry-run mode in the workflow configuration:
+
+```cpp
+WorkflowConfig config;
+config.band = BAND_433MHZ;
+config.dryRunMode = true;  // *** ENABLE DRY-RUN MODE ***
+
+RFTestWorkflow workflow;
+workflow.initialize(config, &rf433, &rf24);
+workflow.start();
+```
+
+Or configure it globally in `include/config.h`:
+
+```cpp
+#define DRY_RUN_MODE true  // Enable by default
+```
+
+### What Happens in Dry-Run Mode?
+
+When dry-run mode is enabled:
+
+1. **All States Execute Normally**
+   - INIT → LISTENING → ANALYZING → READY → TX_GATED → TRANSMIT → CLEANUP
+   - State transitions occur as they would in normal operation
+   - Timing and delays are preserved
+
+2. **All Gates Are Checked**
+   - Policy Gate: Validates frequency, duration, signal data
+   - Confirmation Gate: Checks user confirmation
+   - Rate Limit Gate: Enforces transmission limits
+   - Band-Specific Gate: Performs 433 MHz or 2.4 GHz validation
+
+3. **Transmission is Simulated**
+   - No hardware module calls are made
+   - RF transmitter is not enabled
+   - Realistic transmission delay is simulated
+   - Success is always returned (unless gates fail)
+
+4. **Detailed Logging is Provided**
+   ```
+   [Workflow] *** DRY-RUN MODE ENABLED ***
+   [Workflow] *** NO RF EMISSIONS WILL OCCUR ***
+   [Workflow] === GATED TRANSMISSION PHASE ===
+   [Workflow] *** DRY-RUN MODE - SIMULATING GATES ***
+   [Workflow] Gate 1: PASSED
+   [Workflow] Gate 2: PASSED
+   [Workflow] Gate 3: PASSED
+   [Workflow] Gate 4: PASSED
+   [Workflow] === TRANSMISSION PHASE ===
+   [Workflow] *** DRY-RUN MODE ACTIVE - NO RF EMISSION ***
+   [Workflow] DRY-RUN: Simulating 433 MHz transmission
+   [Workflow] DRY-RUN: Would transmit 433.92 MHz, 48 pulses
+   [Workflow] DRY-RUN: Protocol: Protocol 1, Device: Remote Control
+   [Workflow] DRY-RUN: Simulated transmission complete
+   [Workflow] Simulated transmission completed successfully
+   ```
+
+### Example: Dry-Run Test
+
+See the complete working example in `examples/dry_run_test/`:
+
+```cpp
+#include <M5Core2.h>
+#include "rf_test_workflow.h"
+
+RFTestWorkflow workflow;
+RF433Module rf433;
+RF24Module rf24;
+
+void setup() {
+    M5.begin();
+    rf433.begin();
+    rf24.begin();
+    
+    // Configure for dry-run
+    WorkflowConfig config;
+    config.band = BAND_433MHZ;
+    config.dryRunMode = true;  // No RF emission
+    
+    workflow.initialize(config, &rf433, &rf24);
+    
+    // ... rest of test logic ...
+}
+```
+
+### Use Cases
+
+**Development & Testing**
+- Test workflow logic without RF equipment
+- Debug state transitions and gate checks
+- Validate timing and error handling
+- Develop new features safely
+
+**CI/CD Pipelines**
+- Automated testing without hardware
+- Verify workflow integrity on every commit
+- Test configuration changes
+- Regression testing
+
+**Demonstrations**
+- Show workflow behavior in presentations
+- Train users on the system
+- Demo safety features without RF
+- Educational purposes
+
+**Debugging**
+- Isolate workflow issues from RF hardware
+- Test edge cases safely
+- Verify gate logic
+- Analyze state transition logs
+
+### Dry-Run vs Normal Operation
+
+| Aspect | Normal Operation | Dry-Run Mode |
+|--------|------------------|--------------|
+| RF Emission | ✅ Actual transmission | ❌ No RF emitted |
+| State Machine | ✅ Full execution | ✅ Full execution |
+| Gate Checks | ✅ All gates | ✅ All gates |
+| Logging | ✅ Standard logs | ✅ Enhanced logs with "DRY-RUN" markers |
+| Hardware Access | ✅ RF modules used | ❌ Hardware bypassed |
+| Success Rate | Depends on conditions | ✅ Always succeeds (if gates pass) |
+| Timing | ✅ Actual RF timing | ⏱️ Simulated (capped) |
+
+### Important Notes
+
+- Dry-run mode does NOT skip safety checks - all gates are still validated
+- The workflow behaves identically except for actual RF emission
+- Hardware modules must still be initialized (but won't be used for transmission)
+- Dry-run mode is ideal for testing, but always test with real RF before deployment
+- State transitions, timeouts, and error handling work the same way
+
 ## Additional Resources
 
 - **WORKFLOWS.md**: Detailed state diagrams and transition rules
 - **PSEUDOCODE.md**: Complete pseudocode implementation
 - **examples/rf_workflow_test/**: Working example with UI
+- **examples/dry_run_test/**: Dry-run mode demonstration
 - **TESTING.md**: Test procedures and scenarios
 - **SECURITY.md**: Security considerations and responsible use
 

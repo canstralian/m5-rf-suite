@@ -191,6 +191,32 @@ Ready!
 5. Learn what devices are around
 ```
 
+## Testing Without RF Emission (Dry-Run Mode)
+
+Want to test the workflow without transmitting? Enable **Dry-Run Mode**:
+
+### Quick Test
+```cpp
+// In your code, enable dry-run mode:
+WorkflowConfig config;
+config.dryRunMode = true;  // Simulates TX without RF
+workflow.initialize(config, &rf433, &rf24);
+```
+
+Or in `include/config.h`:
+```cpp
+#define DRY_RUN_MODE true  // Enable globally
+```
+
+**Benefits of Dry-Run Mode:**
+- ✅ Test workflow logic safely
+- ✅ No RF emissions
+- ✅ All safety gates still checked
+- ✅ Perfect for development and CI/CD
+- ✅ See what would be transmitted
+
+See `examples/dry_run_test/` for a complete example.
+
 ## Help and Support
 
 - **Issues**: https://github.com/canstralian/m5-rf-suite/issues

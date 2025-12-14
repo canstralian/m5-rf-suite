@@ -97,6 +97,7 @@
             if (!(condition)) { \
                 Serial.printf("[ASSERT VERBOSE] %s:%d - %s\n", __FILE__, __LINE__, message); \
                 Serial.printf("[ASSERT VERBOSE] Condition failed: %s\n", #condition); \
+                handleAssertionFailure(message, false); \
             } \
         } while(0)
 #else

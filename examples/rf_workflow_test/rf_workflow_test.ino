@@ -31,6 +31,9 @@ RFTestWorkflow workflow;
 int menuSelection = 0;
 bool inWorkflow = false;
 
+// Gate scenario configuration
+const int SCENARIO_COUNT = 5; // Total number of gate outcome scenarios
+
 void setup() {
     // Initialize M5Stack
     M5.begin();
@@ -422,7 +425,7 @@ void executeGatedTransmission(int signalCount) {
     
     // Simulate different gate scenarios based on signal count
     // This helps users learn about different failure modes
-    int scenario = signalCount % 5; // Rotate through 5 scenarios
+    int scenario = signalCount % SCENARIO_COUNT; // Rotate through scenarios
     
     // Gate 1: Policy Check
     M5.Lcd.println("Gate 1: Policy check...");

@@ -80,8 +80,7 @@ TransmitPermission SafetyModule::checkTransmitPolicy(const TransmitRequest& requ
     
     // TX-CONF-1: Check if confirmation is required and not yet given
     if (requireConfirmation && !request.confirmed) {
-        SAFETY_ASSERT(request.confirmed == false,
-                     "TX-CONF-1: Confirmation state inconsistent");
+        // Confirmation is required but not given - this is the expected denial path
         return PERMIT_DENIED_NO_CONFIRMATION;
     }
     
@@ -92,8 +91,10 @@ TransmitPermission SafetyModule::checkTransmitPolicy(const TransmitRequest& requ
     
     // TX-RATE-1: Check rate limiting
     if (!isRateLimitOK()) {
-        SAFETY_ASSERT(getRecentTransmitCount() >= maxTransmitsPerMinute,
-                     "TX-RATE-1: Rate limit check inconsistent");
+        // Rate limit exceeded - verify count is at or above limit
+        int count = getRecentTransmitCount();
+        SAFETY_ASSERT(count >= maxTransmitsPerMinute,
+                     "TX-RATE-1: Rate limit denied but count below limit");
         return PERMIT_DENIED_RATE_LIMIT;
     }
     

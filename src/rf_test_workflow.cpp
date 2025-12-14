@@ -1016,9 +1016,9 @@ void RFTestWorkflow::verifyStateInvariants() {
     WF_ASSERT(currentState >= WF_IDLE && currentState <= WF_CLEANUP,
               "INV-SM-1: Invalid workflow state");
     
-    // INV-SM-4: IDLE is Terminal (only entered from CLEANUP)
-    if (currentState == WF_IDLE && previousState != WF_IDLE) {
-        WF_ASSERT(previousState == WF_CLEANUP,
+    // INV-SM-4: IDLE is Terminal (only entered from CLEANUP or initial state)
+    if (currentState == WF_IDLE && previousState != WF_CLEANUP && previousState != WF_IDLE) {
+        WF_ASSERT(false,
                   "INV-SM-4: IDLE entered from non-CLEANUP state");
     }
 #endif
@@ -1082,20 +1082,24 @@ void RFTestWorkflow::verifyResourceInvariants() {
 }
 
 bool RFTestWorkflow::isTransmitterEnabled() const {
-    // Query actual hardware state if possible
-    // This is a helper that should ideally query the RF module's actual TX enable pin/register
-    // For now, we provide a conservative check based on state
-    // In production, this would query hardware: return rf433Module->isTransmitEnabled();
+    // TODO: This function should query actual hardware TX enable state
+    // Current implementation is a conservative state-based check that provides
+    // limited validation. For true hardware verification, this should query
+    // the RF module's TX enable pin/register directly:
+    //   if (rf433Module) return rf433Module->getTransmitEnabled();
+    //
+    // LIMITATION: This check only verifies state consistency, not actual hardware.
+    // It will not catch bugs where TX is accidentally enabled outside TRANSMIT state
+    // if the bug bypasses state management.
     
     // Conservative check: only TRANSMIT state should have TX enabled
-    // This is a weak check but better than nothing without hardware query capability
     if (currentState != WF_TRANSMIT) {
         // TX should definitely be disabled in non-TRANSMIT states
         return false;
     }
     
-    // In TRANSMIT state, we assume TX might be enabled
-    // A real hardware query would be more accurate
+    // In TRANSMIT state, TX may be enabled (but we can't verify without hardware query)
+    // Return true to avoid false positives in assertions
     return true;
 }
 

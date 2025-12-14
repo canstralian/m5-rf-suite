@@ -50,11 +50,16 @@
 #define WORKFLOW_24G_MIN_PACKETS 5
 #define WORKFLOW_24G_MIN_OBSERVE_SEC 5
 
+// Assertion failure behavior configuration
+#ifndef WF_ASSERT_HALT_ON_CRITICAL
+    #define WF_ASSERT_HALT_ON_CRITICAL true  // Halt execution on critical assertion failure
+#endif
+
 // ============================================================================
 // DEBUG ASSERTIONS FOR WORKFLOW INVARIANTS
 // ============================================================================
 
-// Assertion macro that logs and handles violations
+// Critical assertion macro with optional halt
 #if DEBUG_ASSERTIONS >= ASSERT_LEVEL_CRITICAL
     #define WF_ASSERT_CRITICAL(condition, message) \
         do { \
@@ -62,6 +67,11 @@
                 Serial.printf("[ASSERT CRITICAL] %s:%d - %s\n", __FILE__, __LINE__, message); \
                 Serial.printf("[ASSERT CRITICAL] Condition failed: %s\n", #condition); \
                 handleAssertionFailure(message, true); \
+                if (WF_ASSERT_HALT_ON_CRITICAL) { \
+                    Serial.println("[ASSERT CRITICAL] HALTING EXECUTION"); \
+                    Serial.flush(); \
+                    while(1) { delay(1000); } \
+                } \
             } \
         } while(0)
 #else

@@ -897,6 +897,26 @@ String RFTestWorkflow::exportDeterministicLogsJSON() const {
     return json;
 }
 
+// Helper function to escape CSV field
+static String escapeCSVField(const char* field) {
+    String str(field);
+    bool needsQuotes = false;
+    
+    // Check if field contains comma, quote, or newline
+    if (str.indexOf(',') >= 0 || str.indexOf('"') >= 0 || str.indexOf('\n') >= 0) {
+        needsQuotes = true;
+    }
+    
+    if (needsQuotes) {
+        // Escape quotes by doubling them
+        str.replace("\"", "\"\"");
+        // Wrap in quotes
+        return "\"" + str + "\"";
+    }
+    
+    return str;
+}
+
 String RFTestWorkflow::exportDeterministicLogsCSV() const {
     String csv = "sequence,timestamp_ms,timestamp_us,event_type,state,prev_state,event,reason,data\n";
     
@@ -904,12 +924,12 @@ String RFTestWorkflow::exportDeterministicLogsCSV() const {
         csv += String(entry.sequenceNumber) + ",";
         csv += String(entry.timestampMs) + ",";
         csv += String(entry.timestampUs) + ",";
-        csv += String(getEventTypeName(entry.eventType)) + ",";
-        csv += String(getStateName(entry.state)) + ",";
-        csv += String(getStateName(entry.prevState)) + ",";
-        csv += String(entry.event) + ",";
-        csv += String(entry.reason) + ",";
-        csv += String(entry.data) + "\n";
+        csv += escapeCSVField(getEventTypeName(entry.eventType)) + ",";
+        csv += escapeCSVField(getStateName(entry.state)) + ",";
+        csv += escapeCSVField(getStateName(entry.prevState)) + ",";
+        csv += escapeCSVField(entry.event) + ",";
+        csv += escapeCSVField(entry.reason) + ",";
+        csv += escapeCSVField(entry.data) + "\n";
     }
     
     return csv;
@@ -930,6 +950,9 @@ void RFTestWorkflow::logDeterministicEvent(DeterministicEventType eventType,
     // Check if we've exceeded the maximum log entries
     if (deterministicLog.size() >= DETERMINISTIC_LOG_MAX_ENTRIES) {
         // Remove oldest entry (FIFO)
+        // Note: vector.erase(begin()) is O(n) but acceptable for buffer overflow
+        // scenarios which should be rare. Export logs regularly to avoid this.
+        // Alternative: Use circular buffer if this becomes a performance bottleneck.
         deterministicLog.erase(deterministicLog.begin());
     }
     
@@ -952,17 +975,25 @@ void RFTestWorkflow::logDeterministicEvent(DeterministicEventType eventType,
     
     deterministicLog.push_back(entry);
     
-    // Output structured log to serial
-    Serial.printf("[DET_LOG] seq=%lu ts_ms=%lu ts_us=%lu type=%s state=%s prev=%s event=%s reason=%s data=%s\n",
-                  entry.sequenceNumber,
-                  entry.timestampMs,
-                  entry.timestampUs,
-                  getEventTypeName(eventType),
-                  getStateName(currentState),
-                  getStateName(previousState),
-                  event,
-                  reason,
-                  data);
+    // Output structured log to serial (safe from format string vulnerabilities)
+    Serial.print("[DET_LOG] seq=");
+    Serial.print(entry.sequenceNumber);
+    Serial.print(" ts_ms=");
+    Serial.print(entry.timestampMs);
+    Serial.print(" ts_us=");
+    Serial.print(entry.timestampUs);
+    Serial.print(" type=");
+    Serial.print(getEventTypeName(eventType));
+    Serial.print(" state=");
+    Serial.print(getStateName(currentState));
+    Serial.print(" prev=");
+    Serial.print(getStateName(previousState));
+    Serial.print(" event=");
+    Serial.print(event);
+    Serial.print(" reason=");
+    Serial.print(reason);
+    Serial.print(" data=");
+    Serial.println(data);
 }
 
 void RFTestWorkflow::logStateEntry(WorkflowState state, const char* reason) {

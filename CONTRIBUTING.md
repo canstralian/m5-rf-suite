@@ -102,25 +102,17 @@ void newFeature() {
 **Example - Correct**:
 ```cpp
 void requestTransmission(RF433Signal signal) {
-    // ✅ CORRECT: Use the safety module
+    // ✅ CORRECT: Prepare a request for the FSM.
     TransmitRequest request;
     request.signal = signal;
-    request.frequency = 433.92;
+    request.frequency = 433.92; // Should be from config
     request.duration = calculateDuration(signal);
 
-    // This will trigger TX_GATED state with all four gates
-    TransmitPermission perm = safety.checkTransmitPolicy(request);
-
-    if (perm == PERMIT_ALLOWED) {
-        // Wait for user confirmation (Gate 2)
-        if (safety.waitForUserConfirmation()) {
-            // Check rate limit (Gate 3)
-            if (safety.isRateLimitOK()) {
-                // Proceed to transmission
-                workflow.transitionToState(TRANSMIT);
-            }
-        }
-    }
+    // The application then triggers the FSM to enter the TX_GATED state.
+    // The FSM automatically processes all four safety gates. The contributor's
+    // code does not need to implement the gate checks directly.
+    // For example (conceptual):
+    // workflow.processEvent(Event::TransmitRequested, request);
 }
 ```
 

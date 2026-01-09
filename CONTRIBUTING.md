@@ -431,7 +431,7 @@ See [Testing Requirements](#testing-requirements) below.
 - [ ] Update WORKFLOWS.md if adding states
 - [ ] Update PSEUDOCODE.md if adding algorithms
 - [ ] Add code comments explaining safety-critical sections
-- [ ] Update CHANGELOG.md
+- [ ] Document changes in release notes or other relevant documentation
 
 ### 5. Submission Phase
 

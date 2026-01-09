@@ -644,10 +644,8 @@ bool SafetyModule::checkFrequencyRange(float frequency) {
     // Additional safety check (defense-in-depth)
 
     // Check if frequency is in valid ISM band
-    const float ISM_MIN = 433.05;
-    const float ISM_MAX = 434.79;
-
-    if (frequency < ISM_MIN || frequency > ISM_MAX) {
+    // Assumes ISM_BAND_433_MIN and ISM_BAND_433_MAX are defined in config.h
+    if (frequency < ISM_BAND_433_MIN || frequency > ISM_BAND_433_MAX) {
         logDenial("Frequency outside ISM band", frequency);
         return false;  // Fail-closed
     }

@@ -8,6 +8,65 @@
 #include <cmath>
 #include <algorithm>
 
+// Forward declaration for assertion handler
+void handleSafetyAssertionFailure(const char* message, bool critical);
+
+// Debug assertion macros for safety module
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_CRITICAL
+    #define SAFETY_ASSERT_CRITICAL(condition, message) \
+        do { \
+            if (!(condition)) { \
+                Serial.printf("[SAFETY ASSERT CRITICAL] %s:%d - %s\n", __FILE__, __LINE__, message); \
+                Serial.printf("[SAFETY ASSERT CRITICAL] Condition failed: %s\n", #condition); \
+                handleSafetyAssertionFailure(message, true); \
+            } \
+        } while(0)
+#else
+    #define SAFETY_ASSERT_CRITICAL(condition, message) ((void)0)
+#endif
+
+#if DEBUG_ASSERTIONS >= ASSERT_LEVEL_STANDARD
+    #define SAFETY_ASSERT(condition, message) \
+        do { \
+            if (!(condition)) { \
+                Serial.printf("[SAFETY ASSERT] %s:%d - %s\n", __FILE__, __LINE__, message); \
+                Serial.printf("[SAFETY ASSERT] Condition failed: %s\n", #condition); \
+                handleSafetyAssertionFailure(message, false); \
+            } \
+        } while(0)
+#else
+    #define SAFETY_ASSERT(condition, message) ((void)0)
+#endif
+
+// Safety assertion failure handler
+void handleSafetyAssertionFailure(const char* message, bool critical) {
+    // Log to serial
+    Serial.println("========================================");
+    Serial.println("SAFETY ASSERTION FAILURE");
+    Serial.printf("Message: %s\n", message);
+    Serial.printf("Critical: %s\n", critical ? "YES" : "NO");
+    Serial.println("========================================");
+    
+    if (critical) {
+        // For critical safety violations, deny all future transmissions
+        // Note: This affects global Safety instance
+        Safety.setRequireConfirmation(true);
+        Safety.setRateLimit(0);  // Block all transmissions
+        
+        Serial.println("[SAFETY CRITICAL] System locked - no transmissions allowed");
+        Serial.flush();
+        
+        // Optionally halt (configurable)
+        #ifdef WF_ASSERT_HALT_ON_CRITICAL
+            #if WF_ASSERT_HALT_ON_CRITICAL
+                Serial.println("[SAFETY CRITICAL] HALTING EXECUTION");
+                Serial.flush();
+                while(1) { delay(1000); }
+            #endif
+        #endif
+    }
+}
+
 SafetyModule Safety; // Global instance
 
 SafetyModule::SafetyModule() {
@@ -44,28 +103,39 @@ void SafetyModule::begin() {
 }
 
 TransmitPermission SafetyModule::checkTransmitPolicy(const TransmitRequest& request) {
+    // TX-CONF-1: Verify confirmation requirement is enforced (not bypassed at runtime)
+    SAFETY_ASSERT_CRITICAL(!REQUIRE_USER_CONFIRMATION || requireConfirmation,
+                          "TX-CONF-1: Confirmation requirement bypassed at runtime");
+    
     // Check timeout first
     if (checkTimeout()) {
         return PERMIT_DENIED_TIMEOUT;
     }
     
-    // Check if confirmation is required and not yet given
+    // TX-CONF-1: Check if confirmation is required and not yet given
     if (requireConfirmation && !request.confirmed) {
+        // Confirmation is required but not given - this is the expected denial path
         return PERMIT_DENIED_NO_CONFIRMATION;
     }
     
-    // Check frequency blacklist
+    // TX-POL-1: Check frequency blacklist
     if (!isFrequencyAllowed(request.frequency)) {
         return PERMIT_DENIED_BLACKLIST;
     }
     
-    // Check rate limiting
+    // TX-RATE-1: Check rate limiting
     if (!isRateLimitOK()) {
+        // Rate limit exceeded - verify count is at or above limit
+        int count = getRecentTransmitCount();
+        SAFETY_ASSERT(count >= maxTransmitsPerMinute,
+                     "TX-RATE-1: Rate limit denied but count below limit");
         return PERMIT_DENIED_RATE_LIMIT;
     }
     
-    // Check duration limits
+    // TX-POL-2: Check duration limits
     if (request.duration > maxTransmitDuration) {
+        SAFETY_ASSERT(maxTransmitDuration > 0,
+                     "TX-POL-2: Duration limit not properly configured");
         return PERMIT_DENIED_POLICY;
     }
     
@@ -83,7 +153,15 @@ bool SafetyModule::isFrequencyAllowed(float frequency) {
 
 bool SafetyModule::isRateLimitOK() {
     cleanupOldTransmits();
-    return (int)recentTransmits.size() < maxTransmitsPerMinute;
+    
+    int currentCount = (int)recentTransmits.size();
+    bool withinLimit = currentCount < maxTransmitsPerMinute;
+    
+    // TX-RATE-1: Verify rate limit enforcement
+    SAFETY_ASSERT(currentCount >= 0 && currentCount <= maxTransmitsPerMinute + 1,
+                 "TX-RATE-1: Rate limit count out of expected range");
+    
+    return withinLimit;
 }
 
 void SafetyModule::requestUserConfirmation(const TransmitRequest& request) {
@@ -139,11 +217,23 @@ void SafetyModule::logTransmitAttempt(const TransmitRequest& request, bool allow
     log.reason = reason;
     snprintf(log.details, sizeof(log.details), "%.127s", request.reason);
     
+    // SAFE-TX-5: Verify audit trail is being maintained
+    SAFETY_ASSERT(auditLog.size() < 1000, "SAFE-TX-5: Audit log size exceeded safe limit");
+    
     auditLog.push_back(log);
     
     if (allowed) {
+        // TX-CONF-2: Single use confirmation - record transmission
         recentTransmits.push_back(millis());
         lastTransmitTime = millis();
+        
+        // Verify transmission was actually allowed
+        SAFETY_ASSERT(reason == PERMIT_ALLOWED,
+                     "Inconsistent: transmission allowed but reason not PERMIT_ALLOWED");
+    } else {
+        // Verify denied transmission has appropriate reason
+        SAFETY_ASSERT(reason != PERMIT_ALLOWED,
+                     "Inconsistent: transmission denied but reason is PERMIT_ALLOWED");
     }
     
     // Keep log size manageable

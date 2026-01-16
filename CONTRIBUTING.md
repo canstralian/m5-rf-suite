@@ -555,7 +555,7 @@ void quickTransmit(unsigned long value) {
 void transmitWithoutConfirmation(RF433Signal signal) {
     // Skipping user confirmation "for convenience"
     hardware.enableTransmitter();
-    hardware.transmit(signal);
+    hardware.transmitSignal(signal, /*requireConfirmation=*/false);
     hardware.disableTransmitter();
 }
 

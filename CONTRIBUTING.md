@@ -238,11 +238,8 @@ Preferred over adding new states. Example:
 ```cpp
 void RFTestWorkflow::processListeningState() {
     // Existing validation
-    if (hardware.isTransmitterDisabled() == false) {
-        logError(WF_ERROR_HARDWARE_FAILURE, "Transmitter must be disabled");
-        transitionToState(WF_CLEANUP, "Safety violation");
-        return;
-    }
+    // Ensure transmitter is disabled for safety
+    rf433Module->setTransmitEnabled(false);
     
     // Your new feature: additional signal type capture
     captureSignals();  // Existing function

@@ -270,7 +270,7 @@ void RFTestWorkflow::processTxGatedState() {
     
     // Your new gate
     if (!checkYourNewValidationGate()) {
-        LOG_WARNING("Your new gate FAILED");
+        Serial.println("Your new gate FAILED");
         transitionToState(WF_READY, "Gate denied");
         return;
     }

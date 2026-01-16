@@ -607,7 +607,7 @@ If you need a test beacon feature:
 void RFTestWorkflow::transmitTestBeacon() {
     // Only callable from READY state after observation
     if (currentState != WF_READY) {
-        LOG_ERROR("Test beacon only available after observation");
+        logError(WF_ERR_INVALID_STATE, "Test beacon only available after observation");
         return;
     }
     

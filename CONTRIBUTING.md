@@ -521,7 +521,7 @@ bool RFTestWorkflow::checkProtocolSafetyGate() {
     }
     
     if (!isSafe) {
-        LOG_WARNING("Unknown or unsafe protocol: %s", signal.protocol);
+        Serial.printf("WARNING: Unknown or unsafe protocol: %s\n", signal.protocol);
         return false;
     }
     

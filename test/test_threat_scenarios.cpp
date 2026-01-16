@@ -498,8 +498,8 @@ void test_FirmwareFault_ErrorHandling() {
     int errorCount = workflow.getErrorCount();
     reporter.assert(errorCount == 0, "Should start with no errors");
     
-    // Workflow enforces error threshold (see rf_test_workflow.cpp line 81)
-    // When errorCount > 10, system forces transition to CLEANUP
+    // Workflow enforces error threshold in RFTestWorkflow::start()
+    // When errorCount exceeds threshold, system forces transition to CLEANUP
     reporter.assert(true, "Error threshold enforced to prevent infinite error loops");
     
     reporter.endTest();

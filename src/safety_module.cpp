@@ -43,28 +43,39 @@ void SafetyModule::begin() {
 #endif
 }
 
+/**
+ * @brief Check transmission policy against safety rules
+ * 
+ * THREAT MITIGATION:
+ * - Accidental Replay: Requires confirmation, enforces timeouts
+ * - Blind Broadcast: Checks frequency blacklist
+ * - User Error: Validates duration limits, prevents policy violations
+ * 
+ * @param request The transmission request to validate
+ * @return PERMIT_ALLOWED if all checks pass, specific denial reason otherwise
+ */
 TransmitPermission SafetyModule::checkTransmitPolicy(const TransmitRequest& request) {
-    // Check timeout first
+    // THREAT: Accidental Replay - Check if confirmation expired
     if (checkTimeout()) {
         return PERMIT_DENIED_TIMEOUT;
     }
     
-    // Check if confirmation is required and not yet given
+    // THREAT: Accidental Replay - Require explicit user confirmation
     if (requireConfirmation && !request.confirmed) {
         return PERMIT_DENIED_NO_CONFIRMATION;
     }
     
-    // Check frequency blacklist
+    // THREAT: Blind Broadcast - Validate frequency is not blacklisted
     if (!isFrequencyAllowed(request.frequency)) {
         return PERMIT_DENIED_BLACKLIST;
     }
     
-    // Check rate limiting
+    // THREAT: Accidental Replay - Enforce rate limiting
     if (!isRateLimitOK()) {
         return PERMIT_DENIED_RATE_LIMIT;
     }
     
-    // Check duration limits
+    // THREAT: User Error - Validate transmission duration within limits
     if (request.duration > maxTransmitDuration) {
         return PERMIT_DENIED_POLICY;
     }
@@ -96,6 +107,16 @@ void SafetyModule::requestUserConfirmation(const TransmitRequest& request) {
 #endif
 }
 
+/**
+ * @brief Wait for user confirmation with timeout protection
+ * 
+ * THREAT MITIGATION:
+ * - Accidental Replay: Timeout prevents stale/forgotten confirmations
+ * - User Error: Forces fresh intentional action, prevents walk-away scenarios
+ * 
+ * @param timeout Maximum time to wait for confirmation (milliseconds)
+ * @return true if confirmed, false if canceled or timed out
+ */
 bool SafetyModule::waitForUserConfirmation(unsigned long timeout) {
     unsigned long startTime = millis();
     
@@ -104,7 +125,7 @@ bool SafetyModule::waitForUserConfirmation(unsigned long timeout) {
             return pendingRequest.confirmed;
         }
         
-        // Check for timeout
+        // THREAT: Accidental Replay - Check for timeout on each iteration
         if (checkTimeout()) {
             confirmationPending = false;
             return false;
@@ -113,6 +134,7 @@ bool SafetyModule::waitForUserConfirmation(unsigned long timeout) {
         delay(100);
     }
     
+    // THREAT: User Error - Timeout expired, deny transmission
     confirmationPending = false;
     return false;
 }
@@ -130,6 +152,19 @@ bool SafetyModule::isConfirmationPending() {
     return confirmationPending;
 }
 
+/**
+ * @brief Log transmission attempt to audit trail
+ * 
+ * THREAT MITIGATION:
+ * - Accidental Replay: Audit trail enables detection of unintended replays
+ * - All threats: Provides accountability and security review capability
+ * 
+ * Logs both allowed and denied attempts with timestamps and reasons.
+ * 
+ * @param request The transmission request
+ * @param allowed Whether transmission was allowed
+ * @param reason The permission decision reason
+ */
 void SafetyModule::logTransmitAttempt(const TransmitRequest& request, bool allowed, TransmitPermission reason) {
     TransmitLog log;
     log.timestamp = millis();
@@ -142,6 +177,7 @@ void SafetyModule::logTransmitAttempt(const TransmitRequest& request, bool allow
     auditLog.push_back(log);
     
     if (allowed) {
+        // THREAT: Accidental Replay - Track transmissions for rate limiting
         recentTransmits.push_back(millis());
         lastTransmitTime = millis();
     }

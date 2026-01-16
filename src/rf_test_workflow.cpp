@@ -370,15 +370,26 @@ void RFTestWorkflow::processInitState() {
     transitionToState(WF_LISTENING, "Init successful");
 }
 
+/**
+ * @brief Process LISTENING state - Passive observation phase
+ * 
+ * THREAT MITIGATION: Prevents Blind Broadcast
+ * - Enforces "observe first" principle before any transmission
+ * - Minimum observation time ensures adequate spectrum awareness
+ * - Transmitter explicitly disabled during this phase (fail-safe)
+ * 
+ * This state is MANDATORY - cannot reach TRANSMIT without passing through LISTENING.
+ */
 void RFTestWorkflow::processListeningState() {
-    // Ensure transmitter is disabled (passive observation)
+    // THREAT: Blind Broadcast - Ensure transmitter is disabled during observation
     if (config.band == BAND_433MHZ && rf433Module) {
         rf433Module->setTransmitEnabled(false);
     }
     
     uint32_t elapsed = millis() - stateEntryTime;
     
-    // Check minimum observation time
+    // THREAT: Blind Broadcast - Enforce minimum observation time
+    // Prevents hasty transmission without understanding spectrum environment
     if (elapsed < config.listenMinTime) {
         captureSignals();
         return;
@@ -449,17 +460,30 @@ void RFTestWorkflow::processReadyState() {
     }
 }
 
+/**
+ * @brief Process TX_GATED state - Multi-stage transmission approval
+ * 
+ * THREAT MITIGATION: This function implements the core defense against:
+ * - Accidental Replay Attacks (multi-gate approval, user confirmation, rate limiting)
+ * - Blind Broadcast (frequency validation, signal analysis requirement)
+ * - User Errors (explicit confirmation, input validation)
+ * 
+ * All four gates must pass sequentially for transmission to proceed.
+ * Any gate failure results in denial and return to READY state (fail-safe).
+ */
 void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] === GATED TRANSMISSION PHASE ===");
     
     transmissionAttempts++;
     
+    // THREAT: User Error - Prevent infinite retry loops
     if (transmissionAttempts > 3) {
         Serial.println("[Workflow] Too many transmission attempts");
         transitionToState(WF_READY, "Max attempts");
         return;
     }
     
+    // THREAT: User Error - Validate signal selection
     if (selectedSignalIndex < 0 || selectedSignalIndex >= (int)captureBuffer.size()) {
         Serial.println("[Workflow] Invalid signal selection");
         transitionToState(WF_READY, "Invalid selection");
@@ -467,6 +491,8 @@ void RFTestWorkflow::processTxGatedState() {
     }
     
     // Gate 1: Policy Check
+    // THREAT: Blind Broadcast, Accidental Replay
+    // Validates frequency blacklist, duration limits, signal validity
     Serial.println("[Workflow] Gate 1: Policy validation");
     if (!checkPolicyGate()) {
         Serial.println("[Workflow] Gate 1: FAILED");
@@ -476,6 +502,8 @@ void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] Gate 1: PASSED");
     
     // Gate 2: Safety Confirmation
+    // THREAT: Accidental Replay, User Error
+    // Requires explicit user button press with timeout protection
     Serial.println("[Workflow] Gate 2: User confirmation");
     if (!checkConfirmationGate()) {
         Serial.println("[Workflow] Gate 2: FAILED");
@@ -485,6 +513,8 @@ void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] Gate 2: PASSED");
     
     // Gate 3: Rate Limit Check
+    // THREAT: Accidental Replay
+    // Prevents rapid-fire replays (max 10/minute)
     Serial.println("[Workflow] Gate 3: Rate limiting");
     if (!checkRateLimitGate()) {
         Serial.println("[Workflow] Gate 3: FAILED");
@@ -494,6 +524,8 @@ void RFTestWorkflow::processTxGatedState() {
     Serial.println("[Workflow] Gate 3: PASSED");
     
     // Gate 4: Band-Specific Validation
+    // THREAT: Blind Broadcast, User Error
+    // 433 MHz: Pulse timing validation, 2.4 GHz: Observed address binding
     Serial.println("[Workflow] Gate 4: Band-specific validation");
     bool gatePass = false;
     if (config.band == BAND_433MHZ) {
@@ -509,7 +541,7 @@ void RFTestWorkflow::processTxGatedState() {
     }
     Serial.println("[Workflow] Gate 4: PASSED");
     
-    // All gates passed
+    // All gates passed - proceed to transmission
     Serial.println("[Workflow] ALL GATES PASSED");
     transitionToState(WF_TRANSMIT, "All gates passed");
 }
@@ -541,6 +573,17 @@ void RFTestWorkflow::processTransmitState() {
     transitionToState(WF_CLEANUP, success ? "Transmit success" : "Transmit failed");
 }
 
+/**
+ * @brief Process CLEANUP state - Mandatory resource cleanup
+ * 
+ * THREAT MITIGATION: Handles Firmware Faults
+ * - Always executes before returning to IDLE (guaranteed cleanup)
+ * - Disables transmitter regardless of success/failure (fail-safe)
+ * - Prevents transmitter being left enabled due to errors or timeouts
+ * - RAII memory management ensures buffer cleanup even on exceptions
+ * 
+ * This state executes on: success, failure, timeout, and emergency stop.
+ */
 void RFTestWorkflow::processCleanupState() {
     Serial.println("[Workflow] === CLEANUP PHASE ===");
     

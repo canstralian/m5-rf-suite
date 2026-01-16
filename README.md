@@ -312,6 +312,27 @@ The safety module enforces a multi-layered approach:
 
 ## Security Considerations
 
+The M5Stack RF Suite implements comprehensive security measures to prevent unauthorized and accidental transmissions. For detailed information about how the system defends against specific threats, see the **[Threat Mapping Documentation](docs/threat-mapping.md)**.
+
+### Key Security Features
+
+- **Multi-layered Defense**: 4 independent transmission gates (Policy, Confirmation, Rate Limit, Band-Specific)
+- **Passive-Listening-First**: Mandatory observation phase before any transmission
+- **Audit Logging**: Complete transmission history for accountability
+- **Timeout Protection**: Auto-expiring confirmations prevent stale transmissions
+- **Frequency Blacklist**: Prevents transmission on prohibited bands
+
+### Threat Classes Addressed
+
+1. **Accidental Replay Attacks**: Multi-gate approval, user confirmation, rate limiting
+2. **Blind Broadcast**: Enforced observation, spectrum analysis, address binding
+3. **User Errors**: Input validation, clear confirmations, timeout protection
+4. **Firmware Faults**: RAII memory management, mandatory cleanup, state timeouts
+
+For complete details on each threat class and its mitigations, see [docs/threat-mapping.md](docs/threat-mapping.md).
+
+### General Security Notes
+
 - The 433 MHz module can capture and replay signals from nearby devices
 - Ensure physical security of the device when containing sensitive signals
 - Be aware that many consumer RF devices use insecure protocols

@@ -545,7 +545,7 @@ if (!checkProtocolSafetyGate()) {
 // WRONG - DO NOT DO THIS
 void quickTransmit(unsigned long value) {
     // Direct transmission without safety checks
-    rcswitch.send(value, 24);
+    rcSwitch.send(value, 24);
 }
 
 // WRONG - DO NOT DO THIS

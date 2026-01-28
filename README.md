@@ -197,6 +197,7 @@ Edit `include/config.h` to customize:
 #define REQUIRE_USER_CONFIRMATION true
 #define TRANSMIT_TIMEOUT 10000  // ms
 #define MAX_TRANSMIT_DURATION 5000  // ms
+#define DRY_RUN_MODE false  // Simulate transmissions without RF emission
 
 // 433 MHz settings
 #define RF_433_RX_PIN 36
@@ -229,8 +230,38 @@ The suite includes a comprehensive workflow system for structured RF testing:
 - **Fail-Safe Modes**: Timeout protection at every state
 - **Gated Transmission**: Multi-stage approval (Policy → Confirmation → Rate Limit → Band-Specific)
 - **Complete Traceability**: Microsecond-precision timing logs
+- **Dry-Run Mode**: Simulate transmissions without RF emission for testing, demos, and CI
 
 See `WORKFLOWS.md` for detailed state diagrams and `PSEUDOCODE.md` for implementation details.
+
+### Dry-Run / Simulation Mode
+
+The workflow system includes a dry-run mode that allows you to test the complete TX_GATED → TRANSMIT workflow without actually emitting RF signals. This is ideal for:
+
+- **Development & Testing**: Validate workflow logic without hardware
+- **CI/CD Pipelines**: Run automated tests without RF equipment
+- **Demonstrations**: Show the workflow safely without emissions
+- **Debugging**: Test gate checks and state transitions
+
+To enable dry-run mode:
+
+```cpp
+WorkflowConfig config;
+config.band = BAND_433MHZ;
+config.dryRunMode = true;  // Enable simulation mode
+
+RFTestWorkflow workflow;
+workflow.initialize(config, &rf433, &rf24);
+```
+
+When dry-run mode is enabled:
+- All workflow states execute normally (INIT → LISTENING → ANALYZING → READY → TX_GATED → TRANSMIT → CLEANUP)
+- All gate checks are performed (Policy, Confirmation, Rate Limit, Band-Specific)
+- Transmission is simulated with realistic timing but no RF emission
+- Detailed logging shows what would have been transmitted
+- The workflow always reports successful simulation
+
+See `examples/dry_run_test/` for a complete working example.
 
 ### Example Usage
 
